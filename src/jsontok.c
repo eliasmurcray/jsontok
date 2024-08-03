@@ -53,22 +53,51 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
 static struct JsonToken *jsontok_parse_string(const char *json_string) {
   char *ptr = (char *)json_string;
   ptr ++;
-  while (*ptr != '\0') {
-    ptr += *ptr == '\\' ? 2 : 1;
-    if (*ptr == '"') break;
+  size_t length = 1;
+  while (*ptr != '"') {
+    if (*ptr == '\0') return NULL; /* failed to parse as string */
+    ptr += *ptr == '\\' + 1;
+    length ++;
   }
-  if (ptr - json_string == 1) return NULL; /* tried to parse as string and failed */
+  char *substr = malloc(length);
+  if (!substr) return NULL; /* malloc fail */
+  size_t i = 0;
+  char *nptr = (char *)(json_string + 1);
+  for (; nptr != ptr; nptr++, i++) {
+    if (*nptr != '\\') {
+      substr[i] = *nptr;
+      continue;
+    }
+    nptr ++;
+    switch (*nptr) {
+      case 'b':
+        substr[i] = '\b';
+        break;
+      case 'f':
+        substr[i] = '\f';
+        break;
+      case 'n':
+        substr[i] = '\n';
+        break;
+      case 'r':
+        substr[i] = '\r';
+        break;
+      case 't':
+        substr[i] = '\t';
+        break;
+      case '"':
+        substr[i] = '"';
+        break;
+      case '\\':
+        substr[i] = '\\';
+        break;
+      default:
+        return NULL; /* failed to parse as string */
+    }
+  }
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) return NULL; /* malloc fail */
   token->type = JSON_STRING;
-  if (ptr - json_string == 2) {
-    token->as_string = "";
-    return token;
-  }
-  size_t length = ptr - json_string - 2;
-  char *substr = malloc(ptr - json_string - 2);
-  if (!substr) return NULL; /* malloc fail */
-  strncpy(substr, json_string + 1, length);
   token->as_string = substr;
   return token;
 }
@@ -80,10 +109,18 @@ static struct JsonToken *jsontok_parse_number(const char *json_string) {
 static struct JsonToken *jsontok_parse_object(const char *json_string) {
   char *ptr = (char *)json_string;
   ptr ++;
-  while (*ptr != '\0') {
-    if (*ptr != '"') return NULL; /* expected '"' at position (ptr - json_string) */
-    if (*ptr == '}') break;
+  size_t counter = 1;
+  while (counter != 0 || *ptr != '\0') {
+    if (*ptr == '\\') ptr += 2;
+    if (*ptr == '{') counter ++;
+    else if (*ptr == '}') counter --;
+    ptr ++;
   }
+  if (ptr - json_string == 1) return NULL;
+  if (ptr - json_string == 2) {
+    
+  }
+  size_t length = ptr - json_string - 2;
 }
 
 static struct JsonToken *jsontok_parse_array(const char *json_string) {
