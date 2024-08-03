@@ -17,8 +17,10 @@ void jsontok_free(struct JsonToken *token) {
       }
       break;
     }
+    case JSON_WRAPPED_OBJECT:
+    case JSON_WRAPPED_ARRAY:
     case JSON_STRING:
-      free(token->as_string); /* may not be necessary (char*) */
+      free(token->as_string);
       break;
     default:
       break;
@@ -150,4 +152,14 @@ struct JsonToken *jsontok_parse(const char *json_string) {
       break;
   }
   return NULL; /* parse error unknown type */
+}
+
+struct JsonToken *jsontok_unwrap(struct JsonToken *token) {
+  if (token->type == JSON_WRAPPED_OBJECT) {
+    return jsontok_parse_object(token->as_string);
+  }
+  if (token->type == JSON_WRAPPED_ARRAY) {
+    return jsontok_parse_array(token->as_string);
+  }
+  return NULL; /* token type cannot be unwrapped */
 }
