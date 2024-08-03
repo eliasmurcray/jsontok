@@ -102,7 +102,7 @@ static struct JsonToken *jsontok_parse_number(const char *json_string) {
   char *ptr = (char *)(json_string + 1);
   unsigned char decimal = 0;
   while (1) {
-    char c = *ptr;
+    char c = *ptr++;
     if (c > '0' && c < '9') continue;
     if (!decimal && c == '.') {
       decimal = 1;
@@ -124,19 +124,22 @@ static struct JsonToken *jsontok_parse_number(const char *json_string) {
   char *endptr = NULL;
   if (decimal) {
     double d = strtod(substr, &endptr);
-    free(substr);
     if (errno || *endptr != '\0') {
+      free(substr);
       free(token);
       return NULL; /* failed to parse as double */
     }
+    free(substr);
     token->as_double = d;
   } else {
     long l = strtol(substr, &endptr, 10);
-    free(substr);
     if (errno || *endptr != '\0') {
+      perror(NULL);
+      free(substr);
       free(token);
       return NULL; /* failed to parse as long */
     }
+    free(substr);
     token->as_long = l;
   }
   return token;
