@@ -5,15 +5,15 @@ void jsontok_free(struct JsonToken *token) {
     case JSON_ARRAY: {
       unsigned int i;
       for (i = 0; i < token->as_array->length; i++) {
-        free(token->as_array->tokens[i]);
+        jsontok_free(token->as_array->tokens[i]);
       }
       break;
     }
     case JSON_OBJECT: {
       unsigned int i;
       for (i = 0; i < token->as_object->count; i++) {
-        free(token->as_object->entries[i]->key); /* may not be necessary (char*) */
-        free(token->as_object->entries[i]->value);
+        free(token->as_object->entries[i]->key);
+        jsontok_free(token->as_object->entries[i]->value);
       }
       break;
     }
@@ -163,3 +163,16 @@ struct JsonToken *jsontok_unwrap(struct JsonToken *token) {
   }
   return NULL; /* token type cannot be unwrapped */
 }
+
+/*void jsontok_unwrap(struct JsonToken *token) {
+  if (token->type == JSON_WRAPPED_OBJECT) {
+    token->type = JSON_OBJECT;
+    token->as_object = jsontok_parse_to_as_object(token->as_string);
+  }
+  if (token->type == JSON_WRAPPED_ARRAY) {
+    token->type = JSON_ARRAY;
+    token->as_array = jsontok_parse_to_as_array(token->as_string);
+  }
+  jsontok_free(token);
+  token type cannot be unwrapped 
+}*/
