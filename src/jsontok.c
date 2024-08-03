@@ -99,7 +99,47 @@ static struct JsonToken *jsontok_parse_string(const char *json_string) {
 }
 
 static struct JsonToken *jsontok_parse_number(const char *json_string) {
-  return (struct JsonToken *)json_string;
+  char *ptr = (char *)(json_string + 1);
+  unsigned char decimal = 0;
+  while (1) {
+    char c = *ptr;
+    if (c > '0' && c < '9') continue;
+    if (!decimal && c == '.') {
+      decimal = 1;
+      continue;
+    }
+    break;
+  }
+  size_t length = ptr - json_string + 1;
+  char *substr = malloc(length);
+  strncpy(substr, json_string, length - 1);
+  substr[length] = '\0';
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    free(substr);
+    return NULL; /* malloc fail */
+  }
+  token->type = JSON_NUMBER;
+  errno = 0;
+  char *endptr = NULL;
+  if (decimal) {
+    double d = strtod(substr, &endptr);
+    free(substr);
+    if (errno || *endptr != '\0') {
+      free(token);
+      return NULL; /* failed to parse as double */
+    }
+    token->as_double = d;
+  } else {
+    long l = strtol(substr, &endptr, 10);
+    free(substr);
+    if (errno || *endptr != '\0') {
+      free(token);
+      return NULL; /* failed to parse as long */
+    }
+    token->as_long = l;
+  }
+  return token;
 }
 
 /* TODO Reduce reused between jsontok_parse_wrapped_object and jsontok_parse_wrapped_array */
