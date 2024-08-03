@@ -203,6 +203,7 @@ static struct JsonToken *jsontok_parse_boolean(const char *json_string) {
   if (strlen(json_string) == 4 && json_string[0] == 't' && json_string[1] == 'r'
       && json_string[2] == 'u' && json_string[3] == 'e') {
     struct JsonToken *token = malloc(sizeof(struct JsonToken));
+    if (!token) return NULL; /* malloc fail */
     token->type = JSON_BOOLEAN;
     token->as_boolean = 1;
     return token;
@@ -210,6 +211,7 @@ static struct JsonToken *jsontok_parse_boolean(const char *json_string) {
   if (strlen(json_string) == 5 && json_string[0] == 'f' && json_string[1] == 'a'
       && json_string[2] == 'l' && json_string[3] == 's' && json_string[4] == 'e') {
     struct JsonToken *token = malloc(sizeof(struct JsonToken));
+    if (!token) return NULL; /* malloc fail */
     token->type = JSON_BOOLEAN;
     token->as_boolean = 0;
   }
@@ -220,6 +222,7 @@ static struct JsonToken *jsontok_parse_null(const char *json_string) {
   if (strlen(json_string) == 4 && json_string[1] == 'u'
       && json_string[2] == 'l' && json_string[3] == 'l') {
     struct JsonToken *token = malloc(sizeof(struct JsonToken));
+    if (!token) return NULL; /* malloc fail */
     token->type = JSON_NULL;
     return token;
   }
