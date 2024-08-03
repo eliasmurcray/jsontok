@@ -134,7 +134,6 @@ static struct JsonToken *jsontok_parse_number(const char *json_string) {
   } else {
     long l = strtol(substr, &endptr, 10);
     if (errno || *endptr != '\0') {
-      perror(NULL);
       free(substr);
       free(token);
       return NULL; /* failed to parse as long */
