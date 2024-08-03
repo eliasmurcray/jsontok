@@ -24,7 +24,7 @@ enum JsonType {
 struct JsonToken;
 
 struct JsonArray {
-  unsigned int length;
+  size_t length;
   struct JsonToken **tokens;
 };
 
@@ -34,8 +34,8 @@ struct JsonEntry {
 };
 
 struct JsonObject {
-  unsigned int count;
-  const struct JsonEntry **entries;
+  size_t count;
+  struct JsonEntry **entries;
 };
 
 struct JsonToken {
