@@ -28,6 +28,19 @@ void jsontok_free(struct JsonToken *token) {
   free(token);
 }
 
+static char escaped(char c) {
+  switch (c) {
+    case 'b': return '\b';
+    case 'f': return '\f';
+    case 'n': return '\n';
+    case 'r': return '\r';
+    case 't': return '\t';
+    case '"': return '"';
+    case '\\': return '\\';
+    default: return '\0';
+  }
+}
+
 struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
   if (key == NULL) {
     return NULL; /* invalid key */
@@ -51,8 +64,7 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
 }
 
 static struct JsonToken *jsontok_parse_string(const char *json_string) {
-  char *ptr = (char *)json_string;
-  ptr ++;
+  char *ptr = (char *)(json_string + 1);
   size_t length = 1;
   while (*ptr != '"') {
     if (*ptr == '\0') return NULL; /* failed to parse as string */
@@ -69,62 +81,82 @@ static struct JsonToken *jsontok_parse_string(const char *json_string) {
       continue;
     }
     nptr ++;
-    switch (*nptr) {
-      case 'b':
-        substr[i] = '\b';
-        break;
-      case 'f':
-        substr[i] = '\f';
-        break;
-      case 'n':
-        substr[i] = '\n';
-        break;
-      case 'r':
-        substr[i] = '\r';
-        break;
-      case 't':
-        substr[i] = '\t';
-        break;
-      case '"':
-        substr[i] = '"';
-        break;
-      case '\\':
-        substr[i] = '\\';
-        break;
-      default:
-        return NULL; /* failed to parse as string */
+    substr[i] = escaped(*nptr);
+    if (substr[i] == '\0') {
+      free(substr);
+      return NULL; /* failed to parse as string invalid escape code */
     }
   }
+  substr[i] = '\0';
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) return NULL; /* malloc fail */
+  if (!token) {
+    free(substr);
+    return NULL; /* malloc fail */
+  }
   token->type = JSON_STRING;
   token->as_string = substr;
   return token;
 }
 
 static struct JsonToken *jsontok_parse_number(const char *json_string) {
-  json_string++;
+  return (struct JsonToken *)json_string;
+}
+
+/* TODO Reduce reused between jsontok_parse_wrapped_object and jsontok_parse_wrapped_array */
+static struct JsonToken *jsontok_parse_wrapped_object(const char* json_string) {
+  char *ptr = (char *)(json_string + 1);
+  size_t counter = 1;
+  while (counter > 1 || *ptr != '}') {
+    if (*ptr == '\0') return NULL; /* failed to parse as object */
+    if (*ptr == '{') counter ++;
+    else if (*ptr == '}') counter --;
+    ptr += *ptr == '\\' + 1;
+  }
+  size_t length = ptr - json_string + 2;
+  char *substr = malloc(length);
+  if (!substr) return NULL; /* malloc fail */
+  strncpy(substr, json_string, length - 1);
+  substr[length] = '\0';
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    free(substr);
+    return NULL; /* malloc fail */
+  }
+  token->type = JSON_WRAPPED_OBJECT;
+  token->as_string = substr;
+  return token;
+}
+
+static struct JsonToken *jsontok_parse_wrapped_array(const char* json_string) {
+  char *ptr = (char *)(json_string + 1);
+  size_t counter = 1;
+  while (counter > 1 || *ptr != ']') {
+    if (*ptr == '\0') return NULL; /* failed to parse as array */
+    if (*ptr == '[') counter ++;
+    else if (*ptr == ']') counter --;
+    ptr += *ptr == '\\' + 1;
+  }
+  size_t length = ptr - json_string + 2;
+  char *substr = malloc(length);
+  if (!substr) return NULL; /* malloc fail */
+  strncpy(substr, json_string, length - 1);
+  substr[length] = '\0';
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    free(substr);
+    return NULL; /* malloc fail */
+  }
+  token->type = JSON_WRAPPED_ARRAY;
+  token->as_string = substr;
+  return token;
 }
 
 static struct JsonToken *jsontok_parse_object(const char *json_string) {
-  char *ptr = (char *)json_string;
-  ptr ++;
-  size_t counter = 1;
-  while (counter != 0 || *ptr != '\0') {
-    if (*ptr == '\\') ptr += 2;
-    if (*ptr == '{') counter ++;
-    else if (*ptr == '}') counter --;
-    ptr ++;
-  }
-  if (ptr - json_string == 1) return NULL;
-  if (ptr - json_string == 2) {
-    
-  }
-  size_t length = ptr - json_string - 2;
+  return (struct JsonToken *)json_string;
 }
 
 static struct JsonToken *jsontok_parse_array(const char *json_string) {
-  
+  return (struct JsonToken *)json_string;
 }
 
 static struct JsonToken *jsontok_parse_boolean(const char *json_string) {
@@ -200,16 +232,3 @@ struct JsonToken *jsontok_unwrap(struct JsonToken *token) {
   }
   return NULL; /* token type cannot be unwrapped */
 }
-
-/*void jsontok_unwrap(struct JsonToken *token) {
-  if (token->type == JSON_WRAPPED_OBJECT) {
-    token->type = JSON_OBJECT;
-    token->as_object = jsontok_parse_to_as_object(token->as_string);
-  }
-  if (token->type == JSON_WRAPPED_ARRAY) {
-    token->type = JSON_ARRAY;
-    token->as_array = jsontok_parse_to_as_array(token->as_string);
-  }
-  jsontok_free(token);
-  token type cannot be unwrapped 
-}*/

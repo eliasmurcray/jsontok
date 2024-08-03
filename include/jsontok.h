@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+  TODO Error codes
+  INVALID_TYPE
+*/
+
 enum JsonType {
   JSON_STRING,
   JSON_NUMBER,
