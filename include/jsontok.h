@@ -1,6 +1,9 @@
 #ifndef JSONTOK_H
 #define JSONTOK_H
 
+#include <stdlib.h>
+#include <string.h>
+
 enum JsonType {
   JSON_STRING,
   JSON_NUMBER,
@@ -10,24 +13,32 @@ enum JsonType {
   JSON_NULL,
 };
 
+struct JsonToken;
+
 struct JsonArray {
   unsigned int length;
-  struct JsonToken* elements;
+  struct JsonToken **tokens;
+};
+
+struct JsonEntry {
+  char *key;
+  struct JsonToken *value;
 };
 
 struct JsonObject {
-  unsigned int length;
-  struct JsonToken* tokens;
+  unsigned int count;
+  const struct JsonEntry **entries;
 };
 
 struct JsonToken {
   enum JsonType type : 3;
   union {
-    const struct JsonObject* as_object;
-    const struct JsonArray* as_array;
-    const char *as_string;
+    struct JsonObject *as_object;
+    struct JsonArray *as_array;
+    char *as_string;
     long as_long;
     double as_double;
+    unsigned char as_boolean;
   };
 };
 
@@ -36,7 +47,7 @@ struct JsonToken {
  *
  * @param token The JsonToken to be freed.
  */
-void jsontok_free(struct JsonToken* token);
+void jsontok_free(struct JsonToken *token);
 
 /**
  * @brief Parses a JSON string and returns a JsonToken.
@@ -45,7 +56,7 @@ void jsontok_free(struct JsonToken* token);
  * @return A pointer to a JsonToken representing the parsed JSON, or NULL if an error occurs.
  *         In case of an error, errno is set.
  */
-struct JsonToken* jsontok_parse(const char* json_string);
+struct JsonToken *jsontok_parse(const char *json_string);
 
 /**
  * @brief Retrieves the value for a specified key in a JSON object.
@@ -54,6 +65,6 @@ struct JsonToken* jsontok_parse(const char* json_string);
  * @param key The key to find.
  * @return The value associated with the key, or NULL if not found or an error occurs. In case of an error, errno is set.
  */
-struct JsonToken* jsontok_get(struct JsonObject* object, const char* key);
+struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
 
 #endif
