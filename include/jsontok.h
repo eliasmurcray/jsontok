@@ -5,14 +5,10 @@
 #include <string.h>
 #include <errno.h>
 
-/*
-  TODO Error codes
-  INVALID_TYPE
-*/
-
 enum JsonType {
   JSON_STRING,
-  JSON_NUMBER,
+  JSON_DOUBLE,
+  JSON_LONG,
   JSON_OBJECT,
   JSON_ARRAY,
   JSON_BOOLEAN,
@@ -25,7 +21,7 @@ struct JsonToken;
 
 struct JsonArray {
   size_t length;
-  struct JsonToken **tokens;
+  struct JsonToken **elements;
 };
 
 struct JsonEntry {
@@ -62,18 +58,17 @@ void jsontok_free(struct JsonToken *token);
  *
  * @param json_string The JSON string to parse.
  * @return A pointer to a JsonToken representing the parsed JSON, or NULL if an error occurs.
- *         In case of an error, errno is set.
  */
-struct JsonToken *jsontok_parse(const char *json_string);
+struct JsonToken *jsontok_parse(const char *json_string, char **error);
 
 /**
  * @brief Retrieves the value for a specified key in a JSON object.
  *
  * @param object The JSON object to search.
  * @param key The key to find.
- * @return The value associated with the key, or NULL if not found or an error occurs. In case of an error, errno is set.
+ * @return The value associated with the key, or NULL if not found or an error occurs.
  */
-struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
+struct JsonToken *jsontok_get(struct JsonObject *object, const char *key, char **error);
 
 /**
  * @brief Unwraps a JSON wrapped token.
@@ -84,6 +79,6 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
  * @param token The JsonToken to unwrap.
  * @return The unwrapped JsonToken, or NULL if unwrapping is not possible.
  */
-struct JsonToken* jsontok_unwrap(struct JsonToken* token);
+struct JsonToken* jsontok_unwrap(struct JsonToken* token, char **error);
 
 #endif

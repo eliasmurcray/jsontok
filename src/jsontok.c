@@ -1,18 +1,20 @@
 #include "jsontok.h"
+#include <stdio.h>
 
-static struct JsonToken *jsontok_parse_no_recursion(const char *json_string);
+static struct JsonToken *jsontok_parse_value(const char **json_string, char **error);
 
 void jsontok_free(struct JsonToken *token) {
+  if (token == NULL) return;
   switch(token->type) {
     case JSON_ARRAY: {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < token->as_array->length; i++) {
-        jsontok_free(token->as_array->tokens[i]);
+        jsontok_free(token->as_array->elements[i]);
       }
       break;
     }
     case JSON_OBJECT: {
-      unsigned int i;
+      size_t i;
       for (i = 0; i < token->as_object->count; i++) {
         free(token->as_object->entries[i]->key);
         jsontok_free(token->as_object->entries[i]->value);
@@ -30,26 +32,15 @@ void jsontok_free(struct JsonToken *token) {
   free(token);
 }
 
-static char escaped(char c) {
-  switch (c) {
-    case 'b': return '\b';
-    case 'f': return '\f';
-    case 'n': return '\n';
-    case 'r': return '\r';
-    case 't': return '\t';
-    case '"': return '"';
-    case '\\': return '\\';
-    default: return '\0';
-  }
-}
-
-struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
+struct JsonToken *jsontok_get(struct JsonObject *object, const char *key, char **error) {
   if (key == NULL) {
-    return NULL; /* invalid key */
+    *error = "Invalid key";
+    return NULL;
   }
   size_t length = strlen(key);
   if (length == 0) {
-    return NULL; /* invalid key */
+    *error = "Invalid key";
+    return NULL;
   }
   /**
    * Hashes are not used as the number of entries will never exceed the
@@ -62,421 +53,430 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
       return object->entries[i]->value;
     }
   }
-  return NULL; /* key not found */
+  return NULL;
 }
 
-static struct JsonToken *jsontok_parse_string(const char *json_string) {
-  char *ptr = (char *)(json_string + 1);
+static char *jsontok_parse_string(const char **json_string, char **error) {
+  char *ptr = (char *)(*json_string + 1);
+  ptr ++;
   size_t length = 1;
   while (*ptr != '"') {
-    if (*ptr == '\0') return NULL; /* failed to parse as string */
-    ptr += *ptr == '\\' + 1;
+    if (*ptr == '\0') {
+      *error = "Failed to parse string: invalid format";
+      return NULL;
+    }
+    ptr += (*ptr == '\\') + 1;
     length ++;
   }
   char *substr = malloc(length);
-  if (!substr) return NULL; /* malloc fail */
+  if (!substr) {
+    *error = "Failed to parse string: failed to allocate memory for substr";
+    return NULL;
+  }
   size_t i = 0;
-  char *nptr = (char *)(json_string + 1);
+  char *nptr = (char *)(*json_string + 1);
   for (; nptr != ptr; nptr++, i++) {
     if (*nptr != '\\') {
       substr[i] = *nptr;
       continue;
     }
     nptr ++;
-    substr[i] = escaped(*nptr);
-    if (substr[i] == '\0') {
-      free(substr);
-      return NULL; /* failed to parse as string invalid escape code */
+    switch (*nptr) {
+      case 'b':
+        substr[i] = '\b';
+        break;
+      case 'f':
+        substr[i] = '\f';
+        break;
+      case 'n':
+        substr[i] = '\n';
+        break;
+      case 'r':
+        substr[i] = '\r';
+        break;
+      case 't':
+        substr[i] = '\t';
+        break;
+      case '"':
+        substr[i] = '"';
+        break;
+      case '\\':
+        substr[i] = '\\';
+        break;
+      default:
+        free(substr);
+        *error = "Failed to parse string: invalid escape code";
+        return NULL;
     }
   }
   substr[i] = '\0';
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
-    free(substr);
-    return NULL; /* malloc fail */
-  }
-  token->type = JSON_STRING;
-  token->as_string = substr;
-  return token;
+  *json_string = ptr + 1;
+  return substr;
 }
 
-static struct JsonToken *jsontok_parse_number(const char *json_string) {
-  char *ptr = (char *)(json_string + 1);
-  unsigned char needs_digit = *json_string == '-';
+static struct JsonToken *jsontok_parse_number_token(const char **json_string, char **error) {
+  char *ptr = (char *)(*json_string + 1);
+  unsigned char needs_digit = **json_string == '-';
   unsigned char decimal = 1;
   while (1) {
     char c = *ptr++;
     if (c >= '0' && c <= '9') continue;
-    if (needs_digit) return NULL; /* invalid format */
+    if (needs_digit) {
+      *error = "Failed to parse number: needed a digit following '-'";
+      return NULL;
+    }
     if (decimal && c == '.') {
       decimal = 0;
       continue;
     }
     break;
   }
-  size_t length = ptr - json_string + 1;
+  ptr --;
+  size_t length = ptr - *json_string + 1;
   char *substr = malloc(length);
-  strncpy(substr, json_string, length - 1);
+  if (!substr) {
+    *error = "Failed to parse number: Failed to allocate memory for char *";
+    return NULL;
+  }
+  strncpy(substr, *json_string, length - 1);
   substr[length] = '\0';
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {
+    *error = "Failed to parse number: Failed to allocate memory for JsonToken";
     free(substr);
-    return NULL; /* malloc fail */
+    return NULL;
   }
-  token->type = JSON_NUMBER;
   errno = 0;
   char *endptr = NULL;
-  if (decimal) {
+  if (!decimal) {
+    token->type = JSON_DOUBLE;
     double d = strtod(substr, &endptr);
     if (errno || *endptr != '\0') {
+      if (errno) {
+        size_t errlen = snprintf(NULL, 0, "Failed to parse '%s' as double: %s", substr, strerror(errno)) + 1;
+        *error = malloc(errlen);
+        snprintf(*error, errlen, "Failed to parse '%s' as double: %s", substr, strerror(errno));
+      } else {
+        size_t errlen = snprintf(NULL, 0, "Failed to parse '%s' as double", substr) + 1;
+        *error = malloc(errlen);
+        snprintf(*error, errlen, "Failed to parse '%s' as double", substr);
+      }
       free(substr);
       free(token);
-      return NULL; /* failed to parse as double */
+      return NULL;
     }
     free(substr);
     token->as_double = d;
   } else {
+    token->type = JSON_LONG;
     long l = strtol(substr, &endptr, 10);
     if (errno || *endptr != '\0') {
+      if (errno) {
+        size_t errlen = snprintf(NULL, 0, "Failed to parse '%s' as long: %s", substr, strerror(errno)) + 1;
+        *error = malloc(errlen);
+        snprintf(*error, errlen, "Failed to parse '%s' as long: %s", substr, strerror(errno));
+      } else {
+        size_t errlen = snprintf(NULL, 0, "Failed to parse '%s' as long", substr) + 1;
+        *error = malloc(errlen);
+        snprintf(*error, errlen, "Failed to parse '%s' as long", substr);
+      }
       free(substr);
       free(token);
-      return NULL; /* failed to parse as long */
+      return NULL;
     }
     free(substr);
     token->as_long = l;
   }
+  *json_string = ptr;
   return token;
 }
 
-/* TODO Reduce reused code between jsontok_parse_wrapped_object and jsontok_parse_wrapped_array */
-static struct JsonToken *jsontok_parse_wrapped_object(const char* json_string) {
-  char *ptr = (char *)(json_string + 1);
+/**
+ * @brief Wraps a JSON object in a string for iterative parsing.
+ *
+ * Both `jsontok_wrap_array` and `jsontok_wrap_object` enable iterative parsing by
+ * requiring the user to unwrap subobjects and subarrays when they are needed.
+ *
+ * @param json_string A char pointer to the beginning of the JSON object.
+ * @param error A pointer to a char pointer where an error message will be set on failure.
+ * @return A char pointer to the wrapped JSON object string. On error, NULL is returned
+ *         and the error parameter is set with an appropriate message.
+ */
+static char *jsontok_wrap_object(const char **json_string, char **error) {
+  char *ptr = (char *)(*json_string + 1);
   size_t counter = 1;
   while (counter > 1 || *ptr != '}') {
-    if (*ptr == '\0') return NULL; /* failed to parse as object */
+    if (*ptr == '\0') {
+      *error = "Failed to wrap subobject: No closing bracket";
+      return NULL;
+    }
     if (*ptr == '{') counter ++;
     else if (*ptr == '}') counter --;
-    ptr += *ptr == '\\' + 1;
+    ptr += (*ptr == '\\') + 1;
   }
-  size_t length = ptr - json_string + 2;
+  size_t length = ptr - *json_string + 2;
   char *substr = malloc(length);
-  if (!substr) return NULL; /* malloc fail */
-  strncpy(substr, json_string, length - 1);
-  substr[length] = '\0';
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
-    free(substr);
-    return NULL; /* malloc fail */
+  if (!substr) {
+    *error = "Failed to wrap subobject: Failed to allocate memory for substr";
+    return NULL;
   }
-  token->type = JSON_WRAPPED_OBJECT;
-  token->as_string = substr;
-  return token;
+  strncpy(substr, *json_string, length - 1);
+  substr[length] = '\0';
+  *json_string = ptr;
+  return substr;
 }
 
-static struct JsonToken *jsontok_parse_wrapped_array(const char* json_string) {
-  char *ptr = (char *)(json_string + 1);
+/**
+ * @brief Wraps a JSON array in a string for iterative parsing.
+ *
+ * Both `jsontok_wrap_array` and `jsontok_wrap_object` enable iterative parsing by
+ * requiring the user to unwrap subobjects and subarrays when they are needed.
+ *
+ * @param json_string A pointer to a char pointer to the beginning of the JSON array.
+ * @param error A pointer to a char pointer where an error message will be set on failure.
+ * @return A char pointer to the wrapped JSON array string. On error, NULL is returned
+ *         and the error parameter is set with an appropriate message.
+ */
+static char *jsontok_wrap_array(const char **json_string, char **error) {
+  char *ptr = (char *)(*json_string + 1);
   size_t counter = 1;
   while (counter > 1 || *ptr != ']') {
-    if (*ptr == '\0') return NULL; /* failed to parse as array */
+    if (*ptr == '\0') {
+      *error = "Failed to wrap subarray: No closing bracket";
+      return NULL;
+    }
     if (*ptr == '[') counter ++;
     else if (*ptr == ']') counter --;
-    ptr += *ptr == '\\' + 1;
+    ptr += (*ptr == '\\') + 1;
   }
-  size_t length = ptr - json_string + 2;
+  size_t length = ptr - *json_string + 2;
   char *substr = malloc(length);
-  if (!substr) return NULL; /* malloc fail */
-  strncpy(substr, json_string, length - 1);
-  substr[length] = '\0';
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
-    free(substr);
-    return NULL; /* malloc fail */
+  if (!substr) {
+    *error = "Failed to wrap subarray: Failed to allocate memory for substr";
+    return NULL;
   }
-  token->type = JSON_WRAPPED_ARRAY;
-  token->as_string = substr;
-  return token;
+  strncpy(substr, *json_string, length - 1);
+  substr[length] = '\0';
+  *json_string = ptr;
+  return substr;
 }
 
-static unsigned char skip_value(const char* ptr) {
-  switch (*ptr) {
-    case '"':
-      ptr ++;
-      while (*ptr != '"') {
-        if (*ptr == '\0') return 1; /* invalid format */
-        ptr += *ptr == '\\' + 1;
-      }
-      return 0;
-    case '0':
-    case '1':
-    case '2':
-    case '3': 
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8': 
-    case '9': 
-    case '-': {
-      unsigned char needs_digit = *ptr == '-';
-      unsigned char decimal = 1;
-      ptr ++;
-      while (1) {
-        char c = *ptr++;
-        if (c >= '0' && c <= '9') {
-          needs_digit = 0;
-          continue;
-        }
-        if (needs_digit) return 1; /* invalid format */
-        if (decimal && c == '.') {
-          decimal = 0;
-          continue;
-        }
-        return !(c == ',' || c == '}');
-      }
+static struct JsonObject *jsontok_parse_object(const char *json_string, char **error) {
+  return (struct JsonObject *)json_string;
+}
+
+/**
+ * To fill an array in one pass, we store the data temporarily in a linked list
+ * and expand it into a malloc'd pointer once traversal is complete, avoiding realloc.
+ */
+struct Node {
+  void *value;
+  struct Node *next;
+};
+
+static void free_list(struct Node *n) {
+  while (n) {
+    struct Node* t = n;
+    n = n->next;
+    free(t->value);
+    free(t);
+  }
+}
+
+static struct JsonArray *jsontok_parse_array(const char *json_string, char **error) {
+  printf("parsing as array\n");
+  struct Node *head = malloc(sizeof(struct Node));
+  if (!head) {
+    *error = "Failed to allocate memory for Node";
+    return NULL;
+  }
+  head->next = NULL;
+  head->value = NULL;
+  char *ptr = (char *)(json_string + 1);
+  size_t length = 0;
+  while (*ptr != ']') {
+    if (*ptr == '\0') {
+      free_list(head);
+      *error = "Error parsing array: no closing bracket";
+      return NULL;
+    }
+    printf("parsing item %ld\n", length);
+    struct JsonToken *token = jsontok_parse_value((const char **)&ptr, error);
+    if (!token) {
+      free_list(head);
+      return NULL;
+    }
+    printf("ptr is now '%s'\n", ptr);
+    struct Node *n = malloc(sizeof(struct Node));
+    if (!n) {
+      free_list(head);
+      *error = "Failed to allocate memory for Node";
+      return NULL;
+    }
+    n->next = head;
+    n->value = token;
+    head = n;
+    if (*ptr == ',') ptr ++;
+    length ++;
+  }
+  printf("after loop, length is %ld\n", length);
+  struct JsonToken **elements = malloc(length * sizeof(struct JsonToken *));
+  if (!elements) {
+    free_list(head);
+    *error = "Failed to allocate memory for **JsonToken";
+    return NULL;
+  }
+  size_t i = length - 1;
+  while (head) {
+    struct JsonToken *token = head->value;
+    elements[i] = token;
+    i --;
+    struct Node *t = head;
+    head = head->next;
+    free(t);
+  }
+  printf("finished extracting linked list items\n");
+  struct JsonArray *array = malloc(sizeof(struct JsonArray));
+  if (!array) {
+    free(elements);
+    free_list(head);
+    *error = "Failed to allocate memory for JsonArray";
+    return NULL;
+  }
+  array->length = length;
+  array->elements = elements;
+  printf("created array succesfully!\n");
+  return array;
+}
+
+struct JsonToken *jsontok_parse(const char *json_string, char **error) {
+  if (!json_string || strlen(json_string) == 0) {
+    *error = "Failed to parse, input is empty";
+    return NULL;
+  }
+  /* Numbers are either longs or doubles, so they have their own control path */
+  char c = *json_string;
+  if ((c < '0' && c > '9') || c == '-') {
+    return jsontok_parse_number_token(&json_string, error);
+  }
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    *error = "Failed to allocate memory for JsonToken";
+    return NULL;
+  }
+  if (!memcmp(json_string, "true", 4)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 1;
+  } else if (!memcmp(json_string, "false", 5)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 0;
+  } else if (!memcmp(json_string, "null", 4)) {
+    token->type = JSON_NULL;
+  }
+  switch (c) {
+    case '"': {
+      char *str = jsontok_parse_string(&json_string, error);
+      if (!str) return NULL;
+      token->type = JSON_STRING;
+      token->as_string = str;
       break;
     }
     case '{': {
-      ptr ++;
-      size_t counter = 1;
-      while (counter > 1 || *ptr != '}') {
-        if (*ptr == '\0') return 1; /* invalid format */
-        if (*ptr == '{') counter ++;
-        else if (*ptr == '}') counter --;
-        ptr += *ptr == '\\' + 1;
-      } 
-      return 0;
+      struct JsonObject *object = jsontok_parse_object(json_string, error);
+      if (!object) return NULL;
+      token->type = JSON_OBJECT;
+      token->as_object = object;
+      break;
     }
     case '[': {
-      ptr ++;
-      size_t counter = 1;
-      while (counter > 1 || *ptr != ']') {
-        if (*ptr == '\0') return 1; /* invalid format */
-        if (*ptr == '[') counter ++;
-        else if (*ptr == ']') counter --;
-        ptr += *ptr == '\\' + 1;
-      } 
-      return 0;
+      struct JsonArray *array = jsontok_parse_array(json_string, error);
+      if (!array) return NULL;
+      token->type = JSON_ARRAY;
+      token->as_array = array;
+      break;
     }
-    case 't':
-      if (strncmp(ptr, "true", 4)) return 1; /* invalid format */
-      ptr += 4;
-      return 0;
-    case 'f':
-      if (strncmp(ptr, "false", 5)) return 1; /* invalid format */
-      ptr += 5;
-      return 0;
-    case 'n':
-      if (strncmp(ptr, "null", 4)) return 1; /* invalid format */
-      ptr += 4;
-      return 0;
+    default:
+      free(token);
+      *error = "Failed to parse, invalid JSON";
+      return NULL;
   }
-  return 1; /* invalid format */
+  return token;
 }
 
-static struct JsonToken *jsontok_parse_object(const char *json_string) {
-  char *ptr = (char *)(json_string + 1);
-  size_t count = 0;
-  while (*ptr != '}') {
-    if (*ptr != '"') return NULL; /* invalid format */
-    ptr ++;
-    while (*ptr != '"') {
-      if (*ptr == '\0') return NULL; /* invalid format */
-      ptr += *ptr == '\\' + 1;
-    }
-    ptr ++;
-    if (*ptr != ':') return NULL; /* invalid format */
-    ptr ++;
-    if (skip_value(ptr)) return NULL; /* invalid format */
-    count ++;
-    ptr ++;
+/* Similar to jsontok_parse but doesn't recursively expand objects and arrays. */
+static struct JsonToken *jsontok_parse_value(const char **ptr, char **error) {
+  /* Numbers are either longs or doubles, so they have their own control path */
+  char c = **ptr;
+  if ((c >= '0' && c <= '9') || c == '-') {
+    printf("as number\n");
+    return jsontok_parse_number_token(ptr, error);
   }
-  struct JsonEntry **entries = malloc(count * sizeof(struct JsonEntry *));
-  if (!entries) return NULL; /* malloc fail */
-  /* fill object values with another traversal of object */
-  size_t j = 0;
-  while (*ptr != '}') {
-    if (*ptr != '"') return NULL; /* invalid format */
-    ptr ++;
-    char *nptr = ptr;
-    size_t length = 1;
-    while (*ptr != '"') {
-      if (*ptr == '\0') return NULL; /* invalid format */
-      ptr += *ptr == '\\' + 1;
-      length ++;
-    }
-    char *key = malloc(length);
-    if (!key) return NULL; /* malloc error */
-    size_t i = 0;
-    for (; nptr != ptr; nptr ++, i++) {
-      if (*nptr != '\\') {
-        key[i] = *nptr;
-        continue;
-      } 
-      nptr ++;
-      key[i] = escaped(*nptr);
-      if (key[i] == '\0') {
-        free(key);
-        return NULL; /* failed to parse as string invalid escape code */
-      }
-    }
-    key[i] = '\0';
-
-    ptr ++;
-    if (*ptr != ':') return NULL; /* invalid format */
-    ptr ++;
-    /* parse value */
-    struct JsonToken* token = jsontok_parse_no_recursion(ptr);
-    if (!token) {
-      free(key);
-      free(entries);
-      return NULL; /* ??? */
-    }
-    skip_value(ptr);
-
-    struct JsonEntry *entry = malloc(sizeof(struct JsonEntry));
-    if (!entry) {
-      free(key);
-      free(entries);
-      free(entry);
-      return NULL;
-    }
-    entry->key = key;
-    entry->value = token;
-    entries[j] = entry;
-
-    j ++;
-    ptr ++;
-  }
-  struct JsonObject *object = malloc(sizeof(struct JsonObject));
-  if (!object) {
-    free(entries);
-    return NULL; /* malloc fail */
-  }
-  object->count = count;
-  object->entries = entries;
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {
-    free(entries);
-    free(object);
-    return NULL; /* malloc fail */
+    *error = "Failed to allocate memory for JsonToken";
+    return NULL;
   }
-  token->type = JSON_OBJECT;
-  token->as_object = object;
-  return NULL;
-}
-
-static struct JsonToken *jsontok_parse_array(const char *json_string) {
-  return (struct JsonToken *)json_string;
-}
-
-static struct JsonToken *jsontok_parse_boolean(const char *json_string) {
-  if (strlen(json_string) == 4 && json_string[0] == 't' && json_string[1] == 'r'
-      && json_string[2] == 'u' && json_string[3] == 'e') {
-    struct JsonToken *token = malloc(sizeof(struct JsonToken));
-    if (!token) return NULL; /* malloc fail */
+  if (!memcmp(*ptr, "true", 4)) {
+    printf("as boolean\n");
     token->type = JSON_BOOLEAN;
     token->as_boolean = 1;
-    return token;
-  }
-  if (strlen(json_string) == 5 && json_string[0] == 'f' && json_string[1] == 'a'
-      && json_string[2] == 'l' && json_string[3] == 's' && json_string[4] == 'e') {
-    struct JsonToken *token = malloc(sizeof(struct JsonToken));
-    if (!token) return NULL; /* malloc fail */
+    *ptr += 4;
+  } else if (!memcmp(*ptr, "false", 5)) {
+    printf("as boolean\n");
     token->type = JSON_BOOLEAN;
     token->as_boolean = 0;
-  }
-  return NULL; /* attempted to parse as boolean but failed */
-}
-
-static struct JsonToken *jsontok_parse_null(const char *json_string) {
-  if (strlen(json_string) == 4 && json_string[1] == 'u'
-      && json_string[2] == 'l' && json_string[3] == 'l') {
-    struct JsonToken *token = malloc(sizeof(struct JsonToken));
-    if (!token) return NULL; /* malloc fail */
+    *ptr += 5;
+  } else if (!memcmp(*ptr, "null", 4)) {
+    printf("as null\n");
     token->type = JSON_NULL;
-    return token;
+    *ptr += 4;
+  } else {
+    switch (c) {
+      case '"':
+        printf("as string\n");
+        token->type = JSON_STRING;
+        token->as_string = jsontok_parse_string(ptr, error);
+        break;
+      case '{':
+        printf("as subobject\n");
+        token->type = JSON_WRAPPED_OBJECT;
+        token->as_string = jsontok_wrap_object(ptr, error);
+        break;
+      case '[':
+        printf("as subarray\n");
+        token->type = JSON_WRAPPED_ARRAY;
+        token->as_string = jsontok_wrap_array(ptr, error);
+        break;
+      default:
+        printf("invalid type! %c\n", **ptr);
+        free(token);
+        *error = "Failed to parse, invalid JSON";
+        return NULL;
+    }
   }
-  return NULL; /* attempted to parse as null but failed */
+  return token;
 }
 
-struct JsonToken *jsontok_parse(const char *json_string) {
-  if (json_string == NULL) return NULL; /* parse error invalid input */
-  switch (*json_string) {
-    case '"':
-      return jsontok_parse_string(json_string);
-      break;
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-    case '-':
-      return jsontok_parse_number(json_string);
-      break;
-    case '{':
-      return jsontok_parse_object(json_string);
-      break;
-    case '[':
-      return jsontok_parse_array(json_string);
-      break;
-    case 't':
-    case 'f':
-      return jsontok_parse_boolean(json_string);
-      break;
-    case 'n':
-      return jsontok_parse_null(json_string);
-      break;
+struct JsonToken *jsontok_unwrap(struct JsonToken *token, char **error) {
+  struct JsonToken *unwrapped_token = malloc(sizeof(struct JsonToken));
+  if (!unwrapped_token) {
+    *error = "Failed to allocate memory for JsonToken";
+    return NULL;
   }
-  return NULL; /* parse error unknown type */
-}
-
-static struct JsonToken *jsontok_parse_no_recursion(const char *json_string) {
-  if (json_string == NULL) return NULL; /* parse error invalid input */
-  switch (*json_string) {
-    case '"':
-      return jsontok_parse_string(json_string);
-      break;
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-    case '-':
-      return jsontok_parse_number(json_string);
-      break;
-    case '{':
-      return jsontok_parse_wrapped_object(json_string);
-      break;
-    case '[':
-      return jsontok_parse_wrapped_array(json_string);
-      break;
-    case 't':
-    case 'f':
-      return jsontok_parse_boolean(json_string);
-      break;
-    case 'n':
-      return jsontok_parse_null(json_string);
-      break;
-  }
-  return NULL; /* parse error unknown type */
-}
-
-struct JsonToken *jsontok_unwrap(struct JsonToken *token) {
   if (token->type == JSON_WRAPPED_OBJECT) {
-    return jsontok_parse_object(token->as_string);
+    struct JsonObject *object  = jsontok_parse_object(token->as_string, error);
+    if (!object) return NULL;
+    unwrapped_token->type = JSON_OBJECT;
+    unwrapped_token->as_object = object;
+    return unwrapped_token;
   }
   if (token->type == JSON_WRAPPED_ARRAY) {
-    return jsontok_parse_array(token->as_string);
+    struct JsonArray *array = jsontok_parse_array(token->as_string, error);
+    if (!array) return NULL;
+    unwrapped_token->type = JSON_ARRAY;
+    unwrapped_token->as_array = array;
   }
-  return NULL; /* token type cannot be unwrapped */
+  free(unwrapped_token);
+  *error = "Invalid type";
+  return NULL;
 }
