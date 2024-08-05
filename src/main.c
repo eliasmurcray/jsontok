@@ -3,7 +3,7 @@
 
 int main() {
   char *error = NULL;
-  const char* my_json = "[123.45,\"foo\",null,0]";
+  const char* my_json = "[123.45,\"foo\",null,0,[0,true,0.24]]";
   printf("input: '%s'\n", my_json);
   struct JsonToken *json = jsontok_parse(my_json, &error);
   if (!json) {
