@@ -2,41 +2,32 @@
 #include <stdio.h>
 
 int main() {
-  char *error = NULL;
-  const char* my_json = "[123.45,\"foo\",null,0,[0,true,0.24]]";
-  printf("input: '%s'\n", my_json);
-  struct JsonToken *json = jsontok_parse(my_json, &error);
-  if (!json) {
-    printf("%s\n", error);
+  const char* my_json = "{\"foo\":\"bar\",\"baz\":1,\"nest\":{\"pi\":3.41}}";
+  printf("Input: %s\n", my_json);
+  enum JsonError error;
+  struct JsonToken *token = jsontok_parse(my_json, &error);
+  if (!token) {
+    fprintf(stderr, "Error parsing JSON: %s\n", jsontok_strerror(error));
     return 1;
   }
-  if (json->type == JSON_ARRAY) {
-    struct JsonArray *array = json->as_array;
-    size_t i = 0;
-    for (; i < array->length; i++) {
-      switch (array->elements[i]->type) {
-        case JSON_LONG:
-          printf("%ld\n", array->elements[i]->as_long);
-          break;
-        case JSON_DOUBLE:
-          printf("%f\n", array->elements[i]->as_double);
-          break;
-        case JSON_WRAPPED_OBJECT:
-        case JSON_WRAPPED_ARRAY:
-        case JSON_STRING:
-          printf("%s\n", array->elements[i]->as_string);
-          break;
-        case JSON_BOOLEAN:
-          printf("%c\n", array->elements[i]->as_boolean);
-          break;
-        case JSON_NULL:
-          printf("null\n");
-          break;
-        default:
-          break;
+  struct JsonToken *foo = jsontok_get(token->as_object, "foo");
+  if (foo && foo->type == JSON_STRING) {
+    printf("value of foo is %s\n", foo->as_string);
+  }
+  struct JsonToken *bar = jsontok_get(token->as_object, "baz");
+  if (bar && bar->type == JSON_LONG) {
+    printf("value of bar is %ld\n", bar->as_long);
+  }
+  struct JsonToken *nest = jsontok_get(token->as_object, "nest");
+  if (nest && nest->type == JSON_WRAPPED_OBJECT) {
+    struct JsonToken *obj = jsontok_unwrap(nest, &error);
+    if (obj && obj->type == JSON_OBJECT) {
+      struct JsonToken *pi = jsontok_get(obj->as_object, "pi");
+      if (pi && pi->type == JSON_DOUBLE) {
+        printf("value of nest.pi is %f\n", pi->as_double);
       }
     }
+    jsontok_free(obj);
   }
-  free(error);
-  jsontok_free(json);
+  jsontok_free(token);
 }
