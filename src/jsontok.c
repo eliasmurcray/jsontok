@@ -1,4 +1,5 @@
 #include "jsontok.h"
+#include <stdio.h>
 
 static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
 
@@ -30,6 +31,7 @@ void jsontok_free(struct JsonToken *token) {
     case JSON_OBJECT: {
       size_t i;
       for (i = 0; i < token->as_object->count; i++) {
+        printf("freeing %s\n", token->as_object->entries[i]->key);
         free(token->as_object->entries[i]->key);
         jsontok_free(token->as_object->entries[i]->value);
       }
