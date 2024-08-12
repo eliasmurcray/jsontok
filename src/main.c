@@ -88,4 +88,5 @@ int main() {
     }
   }
   jsontok_free(token);
+  return 0;
 }
