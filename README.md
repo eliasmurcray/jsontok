@@ -1,6 +1,6 @@
 # jsontok
 
-jsontok is a small library for parsing minfied JSON iteratively. Instead of parsing an entire tree recursively, it parses one layer at a time to save resources which would have been used to parse subtrees and returns nested objects and arrays as strings which can then be parsed again if you'd like to access that branch. There are a few other design decisions which allow the the parser to only iterate over the string once.
+jsontok is a lightweight library for efficiently parsing minified JSON in an iterative manner. It processes one layer at a time, returning nested objects and arrays as strings, which can be parsed further if needed. The library is designed to pass through the JSON string just once, optimizing performance.
 
 ## Usage
 
