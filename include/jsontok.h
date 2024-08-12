@@ -88,6 +88,12 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
  */
 struct JsonToken *jsontok_unwrap(struct JsonToken* token, enum JsonError *error);
 
+/**
+ * @brief Looks up the error message string corresponding to the error code.
+ *
+ * @param error The error enum to be looked up.
+ * @return The stringified version of the error.
+ */
 const char *jsontok_strerror(enum JsonError error);
 
 #endif
