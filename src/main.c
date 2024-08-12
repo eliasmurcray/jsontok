@@ -64,8 +64,8 @@ void test_parse_valid_json() {
 
   struct JsonToken *number_token = jsontok_get(token->as_object, "number");
   assert(number_token != NULL);
-  assert(number_token->type == JSON_LONG);
-  assert(number_token->as_long == 42);
+  assert(number_token->type == JSON_NUMBER);
+  assert(number_token->as_number == 42);
 
   struct JsonToken *array_token = jsontok_get(token->as_object, "array");
   assert(array_token != NULL);

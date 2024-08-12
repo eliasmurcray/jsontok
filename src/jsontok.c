@@ -164,29 +164,16 @@ static struct JsonToken *jsontok_parse_number_token(const char **json_string, en
   }
   errno = 0;
   char *endptr = NULL;
-  if (!decimal) {
-    token->type = JSON_DOUBLE;
-    double d = strtod(substr, &endptr);
-    if (errno || *endptr != '\0') {
-      *error = JSON_EFMT;
-      free(substr);
-      free(token);
-      return NULL;
-    }
+  token->type = JSON_NUMBER;
+  double value = strtod(substr, &endptr);
+  if (errno || *endptr != '\0') {
+    *error = JSON_EFMT;
     free(substr);
-    token->as_double = d;
-  } else {
-    token->type = JSON_LONG;
-    long l = strtol(substr, &endptr, 10);
-    if (errno || *endptr != '\0') {
-      *error = JSON_EFMT;
-      free(substr);
-      free(token);
-      return NULL;
-    }
-    free(substr);
-    token->as_long = l;
+    free(token);
+    return NULL;
   }
+  free(substr);
+  token->as_number = value;
   *json_string = ptr;
   return token;
 }

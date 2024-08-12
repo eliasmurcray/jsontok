@@ -14,8 +14,7 @@ enum JsonError {
 
 enum JsonType {
   JSON_STRING,
-  JSON_DOUBLE,
-  JSON_LONG,
+  JSON_NUMBER,
   JSON_OBJECT,
   JSON_ARRAY,
   JSON_BOOLEAN,
@@ -47,8 +46,7 @@ struct JsonToken {
     struct JsonObject *as_object;
     struct JsonArray *as_array;
     char *as_string;
-    long as_long;
-    double as_double;
+    double as_number;
     unsigned char as_boolean;
   };
 };
