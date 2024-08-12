@@ -1,5 +1,4 @@
 #include "jsontok.h"
-#include <stdio.h>
 
 static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
 
@@ -31,7 +30,6 @@ void jsontok_free(struct JsonToken *token) {
     case JSON_OBJECT: {
       size_t i;
       for (i = 0; i < token->as_object->count; i++) {
-        printf("freeing %s\n", token->as_object->entries[i]->key);
         free(token->as_object->entries[i]->key);
         jsontok_free(token->as_object->entries[i]->value);
       }
@@ -73,7 +71,7 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   ptr ++;
-  size_t length = 1;
+  size_t length = 0;
   while (*ptr != '"') {
     if (*ptr == '\0') {
       *error = JSON_EFMT;
@@ -82,7 +80,7 @@ static char *jsontok_parse_string(const char **json_string, enum JsonError *erro
     ptr += (*ptr == '\\') + 1;
     length ++;
   }
-  char *substr = malloc(length);
+  char *substr = malloc(length + 1);
   if (!substr) {
     *error = JSON_ENOMEM;
     return NULL;
@@ -123,7 +121,7 @@ static char *jsontok_parse_string(const char **json_string, enum JsonError *erro
         return NULL;
     }
   }
-  substr[i] = '\0';
+  substr[length] = '\0';
   *json_string = ptr + 1;
   return substr;
 }
@@ -146,13 +144,13 @@ static struct JsonToken *jsontok_parse_number_token(const char **json_string, en
     break;
   }
   ptr --;
-  size_t length = ptr - *json_string + 1;
-  char *substr = malloc(length);
+  size_t length = ptr - *json_string;
+  char *substr = malloc(length + 1);
   if (!substr) {
     *error = JSON_ENOMEM;
     return NULL;
   }
-  strncpy(substr, *json_string, length - 1);
+  strncpy(substr, *json_string, length);
   substr[length] = '\0';
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {
@@ -212,13 +210,13 @@ static char *jsontok_wrap_object(const char **json_string, enum JsonError *error
     else if (*ptr == '}') counter --;
     ptr += (*ptr == '\\') + 1;
   }
-  size_t length = ptr - *json_string + 2;
-  char *substr = malloc(length);
+  size_t length = ptr - *json_string + 1;
+  char *substr = malloc(length + 1);
   if (!substr) {
     *error = JSON_ENOMEM;
     return NULL;
   }
-  strncpy(substr, *json_string, length - 1);
+  strncpy(substr, *json_string, length);
   substr[length] = '\0';
   *json_string = ptr + 1;
   return substr;
@@ -247,13 +245,13 @@ static char *jsontok_wrap_array(const char **json_string, enum JsonError *error)
     else if (*ptr == ']') counter --;
     ptr += (*ptr == '\\') + 1;
   }
-  size_t length = ptr - *json_string + 2;
-  char *substr = malloc(length);
+  size_t length = ptr - *json_string + 1;
+  char *substr = malloc(length + 1);
   if (!substr) {
     *error = JSON_EFMT;
     return NULL;
   }
-  strncpy(substr, *json_string, length - 1);
+  strncpy(substr, *json_string, length);
   substr[length] = '\0';
   *json_string = ptr + 1;
   return substr;
@@ -361,8 +359,9 @@ static struct JsonObject *jsontok_parse_object(const char *json_string, enum Jso
     return NULL;
   }
   size_t i = 0;
-  while (head) {
-    entries[i++] = (struct JsonEntry *)head->value;
+  while (head && i != count) {
+    entries[i] = (struct JsonEntry *)head->value;
+    i++;
     struct Node *t = head;
     head = head->next;
     free(t);

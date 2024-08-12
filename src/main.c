@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <inttypes.h>
 
 char *read_file(const char *path) {
   FILE *file = fopen(path, "r");
@@ -28,18 +27,17 @@ void test_parse(const char *path) {
     fprintf(stderr, "Failed to get %s\n", path);
     return;
   }
-  struct timespec end, start;
-  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  clock_t start = clock();
   enum JsonError error;
   struct JsonToken *token = jsontok_parse(json, &error);
-  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  clock_t end = clock();
   if (token == NULL) {  
     free(json);
     fprintf(stderr, "Failed to parse JSON: %s\n", jsontok_strerror(error));
     return;
   }
-  uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
-  printf("Successfully parsed %s (%zu bytes) in %" PRIu64 "us\n\n", path, strlen(json), delta_us);
+  printf("Successfully parsed %s (%zu bytes) in %ldus\n\n", path, strlen(json), ((end - start) * 1000000) / CLOCKS_PER_SEC);
+
   free(json);
   jsontok_free(token);
 }
