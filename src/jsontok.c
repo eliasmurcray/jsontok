@@ -71,7 +71,7 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   ptr ++;
-  size_t length = 0;
+  size_t length = 1;
   while (*ptr != '"') {
     if (*ptr == '\0') {
       *error = JSON_EFMT;
