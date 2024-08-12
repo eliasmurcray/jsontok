@@ -25,6 +25,7 @@ void jsontok_free(struct JsonToken *token) {
       for (i = 0; i < token->as_array->length; i++) {
         jsontok_free(token->as_array->elements[i]);
       }
+      free(token->as_array);
       break;
     }
     case JSON_OBJECT: {
@@ -32,7 +33,10 @@ void jsontok_free(struct JsonToken *token) {
       for (i = 0; i < token->as_object->count; i++) {
         free(token->as_object->entries[i]->key);
         jsontok_free(token->as_object->entries[i]->value);
+        free(token->as_object->entries[i]);
       }
+      free(token->as_object->entries);
+      free(token->as_object);
       break;
     }
     case JSON_WRAPPED_OBJECT:
@@ -352,20 +356,21 @@ static struct JsonObject *jsontok_parse_object(const char *json_string, enum Jso
     *error = JSON_ENOMEM;
     return NULL;
   }
-  struct JsonEntry **entries = malloc(count * sizeof(struct JsonEntry *));
+  struct JsonEntry **entries = malloc((count + 1) * sizeof(struct JsonEntry *));
   if (!entries) {
     free_list_object(head);
+    free(object);
     *error = JSON_ENOMEM;
     return NULL;
   }
   size_t i = 0;
-  while (head && i != count) {
-    entries[i] = (struct JsonEntry *)head->value;
-    i++;
-    struct Node *t = head;
+  while (head) {
+    entries[i++] = (struct JsonEntry *)head->value;
+    struct Node *last = head;
     head = head->next;
-    free(t);
+    free(last);
   }
+  entries[count] = NULL;
   object->count = count;
   object->entries = entries;
   return object;
@@ -459,21 +464,30 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
   switch (c) {
     case '"': {
       char *str = jsontok_parse_string(&json_string, error);
-      if (!str) return NULL;
+      if (!str) {
+        free(token);
+        return NULL;
+      }
       token->type = JSON_STRING;
       token->as_string = str;
       break;
     }
     case '{': {
       struct JsonObject *object = jsontok_parse_object(json_string, error);
-      if (!object) return NULL;
+      if (!object) {
+        free(token);
+        return NULL;
+      }
       token->type = JSON_OBJECT;
       token->as_object = object;
       break;
     }
     case '[': {
       struct JsonArray *array = jsontok_parse_array(json_string, error);
-      if (!array) return NULL;
+      if (!array) {
+        free(token);
+        return NULL;
+      }
       token->type = JSON_ARRAY;
       token->as_array = array;
       break;

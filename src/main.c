@@ -54,7 +54,7 @@ int main() {
   char *json = read_file("./samples/food.json");
   enum JsonError error;
   struct JsonToken *token = jsontok_parse(json, &error);
-  if (token == NULL) {
+  if (!token) {
     free(json);
     fprintf(stderr, "failed to parse json %s\n", jsontok_strerror(error));
     return 1;
@@ -64,6 +64,22 @@ int main() {
     struct JsonToken *status_verbose = jsontok_get(token->as_object, "status_verbose");
     if (status_verbose) {
       printf("status_verbose: %s\n", status_verbose->as_string);
+    }
+  }
+  jsontok_free(token);
+
+  json = read_file("./samples/simple.json");
+  token = jsontok_parse(json, &error);
+  if (!token) {
+    free(json);
+    fprintf(stderr, "failed to parse json %s\n", jsontok_strerror(error));
+    return 1;
+  }
+  free(json);
+  if (token->type == JSON_OBJECT) {
+    struct JsonToken *data = jsontok_get(token->as_object, "data");
+    if (data) {
+      printf("data: %s\n", data->as_string);
     }
   }
   jsontok_free(token);
