@@ -303,7 +303,7 @@ static struct JsonObject *jsontok_parse_object(const char *json_string, enum Jso
   char *ptr = (char *)(json_string + 1);
   size_t count = 0;
   while (*ptr != '}') {
-    if (*ptr == '\0' || *ptr != '"') {
+    if (*ptr != '"') {
       free_list_object(head);
       *error = JSON_EFMT;
       return NULL;
@@ -315,6 +315,8 @@ static struct JsonObject *jsontok_parse_object(const char *json_string, enum Jso
       return NULL;
     }
     if (*ptr != ':') {
+      free(key);
+      free_list_object(head);
       *error = JSON_EFMT;
       return NULL;
     }
@@ -554,14 +556,20 @@ struct JsonToken *jsontok_unwrap(struct JsonToken *token, enum JsonError *error)
   }
   if (token->type == JSON_WRAPPED_OBJECT) {
     struct JsonObject *object  = jsontok_parse_object(token->as_string, error);
-    if (!object) return NULL;
+    if (!object) {
+      free(unwrapped_token);
+      return NULL;
+    }
     unwrapped_token->type = JSON_OBJECT;
     unwrapped_token->as_object = object;
     return unwrapped_token;
   }
   if (token->type == JSON_WRAPPED_ARRAY) {
     struct JsonArray *array = jsontok_parse_array(token->as_string, error);
-    if (!array) return NULL;
+    if (!array) {
+      free(unwrapped_token);
+      return NULL;
+    }
     unwrapped_token->type = JSON_ARRAY;
     unwrapped_token->as_array = array;
   }
