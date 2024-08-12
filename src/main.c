@@ -143,7 +143,6 @@ int main() {
   test_parse("./samples/food.json");
   test_parse("./samples/reddit.json");
   
-  printf("Running unit tests...\n");
   printf("Running test_parse_valid_json...");
   test_parse_valid_json();
   printf(" PASSED\n");
