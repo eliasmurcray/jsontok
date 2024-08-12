@@ -15,8 +15,13 @@ char *read_file(const char *path) {
     fclose(file);
     return NULL;
   }
-  fread(buffer, 1, len, file);
+  if (!fread(buffer, 1, len, file)) {
+    fclose(file);
+    free(buffer);
+    return NULL;
+  }
   buffer[len] = '\0';
+  fclose(file);
   return buffer;
 }
 
