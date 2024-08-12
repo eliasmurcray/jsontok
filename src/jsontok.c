@@ -274,11 +274,12 @@ static void free_list_object(struct Node *n) {
   while (n) {
     struct Node* t = n;
     n = n->next;
-    if (t->value == NULL) continue;
-    struct JsonEntry *entry = (struct JsonEntry *)t->value;
-    free(entry->key);
-    jsontok_free(entry->value);
-    free(entry);
+    if (t->value) {
+      struct JsonEntry *entry = (struct JsonEntry *)t->value;
+      free(entry->key);
+      jsontok_free(entry->value);
+      free(entry);
+    }
     free(t);
   }
 }
