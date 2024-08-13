@@ -4,7 +4,7 @@ jsontok is a lightweight library for efficiently parsing JSON.
 
 ## Features
 - ANSI C compatible
-- [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compatible
+- [RFC 8259](https://datatracker.ietf.org/doc/html/rfc8259) compliant
 
 ## Design
 <a href="https://github.com/eliasmurcray/jsontok/blob/mainline/jsontok_dark.png" target="_blank">
