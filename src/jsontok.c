@@ -10,13 +10,7 @@ struct Node {
   struct Node *next;
 };
 
-static void free_list_object(struct Node *n);
-
-static void free_list_array(struct Node *n);
-
 static void skip_whitespace(const char **ptr);
-
-static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
 
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error);
 
@@ -190,6 +184,116 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
   return token;
 }
 
+/** _split **/
+
+static void free_list_object(struct Node *n) {
+  while (n) {
+    struct Node* t = n;
+    n = n->next;
+    if (t->value) {
+      struct JsonEntry *entry = (struct JsonEntry *)t->value;
+      free(entry->key);
+      jsontok_free(entry->value);
+      free(entry);
+    }
+    free(t);
+  }
+}
+
+static void free_list_array(struct Node *n) {
+  while (n) {
+    struct Node* t = n;
+    n = n->next;
+    jsontok_free((struct JsonToken *)t->value);
+    free(t);
+  }
+}
+
+static void skip_whitespace(const char **ptr) {
+  while (**ptr == '\t' || **ptr == '\r' || **ptr == '\n' || **ptr == ' ') {
+    (*ptr)++;
+  }
+}
+
+static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *error) {
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    *error = JSON_ENOMEM;
+    return NULL;
+  }
+  if (!memcmp(*ptr, "true", 4)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 1;
+    *ptr += 4;
+  } else if (!memcmp(*ptr, "false", 5)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 0;
+    *ptr += 5;
+  } else if (!memcmp(*ptr, "null", 4)) {
+    token->type = JSON_NULL;
+    *ptr += 4;
+  } else {
+    switch (**ptr) {
+      case '"': {
+        char *str = jsontok_parse_string(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_STRING;
+        token->as_string = str;
+        break;
+      }
+      case '{': {
+        char *str = jsontok_parse_sub_object(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_SUB_OBJECT;
+        token->as_string = str;
+        break;
+      }
+      case '[': {
+        char *str = jsontok_parse_sub_array(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_SUB_ARRAY;
+        token->as_string = str;
+        break;
+      }
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+      case '-': {
+        double *number = jsontok_parse_number(ptr, error);
+        if (!number) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_NUMBER;
+        token->as_number = *number;
+        free(number);
+        break;
+      }
+      default:
+        free(token);
+        *error = JSON_EFMT;
+        return NULL;
+    }
+  }
+  return token;
+}
+
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   ptr ++;
@@ -291,77 +395,6 @@ static double *jsontok_parse_number(const char **json_string, enum JsonError *er
   free(substr);
   *json_string = ptr;
   return number;
-}
-
-static char *jsontok_parse_sub_object(const char **json_string, enum JsonError *error) {
-  char *ptr = (char *)(*json_string + 1);
-  size_t counter = 1;
-  while (counter > 1 || *ptr != '}') {
-    if (*ptr == '\0') {
-      *error = JSON_EFMT;
-      return NULL;
-    }
-    if (*ptr == '{') counter ++;
-    else if (*ptr == '}') counter --;
-    ptr += (*ptr == '\\') + 1;
-  }
-  size_t length = ptr - *json_string + 1;
-  char *substr = malloc(length + 1);
-  if (!substr) {
-    *error = JSON_ENOMEM;
-    return NULL;
-  }
-  strncpy(substr, *json_string, length);
-  substr[length] = '\0';
-  *json_string = ptr + 1;
-  return substr;
-}
-
-static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *error) {
-  char *ptr = (char *)(*json_string + 1);
-  size_t counter = 1;
-  while (counter > 1 || *ptr != ']') {
-    if (*ptr == '\0') {
-      *error = JSON_EFMT;
-      return NULL;
-    }
-    if (*ptr == '[') counter ++;
-    else if (*ptr == ']') counter --;
-    ptr += (*ptr == '\\') + 1;
-  }
-  size_t length = ptr - *json_string + 1;
-  char *substr = malloc(length + 1);
-  if (!substr) {
-    *error = JSON_EFMT;
-    return NULL;
-  }
-  strncpy(substr, *json_string, length);
-  substr[length] = '\0';
-  *json_string = ptr + 1;
-  return substr;
-}
-
-static void free_list_object(struct Node *n) {
-  while (n) {
-    struct Node* t = n;
-    n = n->next;
-    if (t->value) {
-      struct JsonEntry *entry = (struct JsonEntry *)t->value;
-      free(entry->key);
-      jsontok_free(entry->value);
-      free(entry);
-    }
-    free(t);
-  }
-}
-
-static void free_list_array(struct Node *n) {
-  while (n) {
-    struct Node* t = n;
-    n = n->next;
-    jsontok_free((struct JsonToken *)t->value);
-    free(t);
-  }
 }
 
 static struct JsonObject *jsontok_parse_object(const char **json_string, enum JsonError *error) {
@@ -521,87 +554,50 @@ static struct JsonArray *jsontok_parse_array(const char **json_string, enum Json
   return array;
 }
 
-static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *error) {
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
+static char *jsontok_parse_sub_object(const char **json_string, enum JsonError *error) {
+  char *ptr = (char *)(*json_string + 1);
+  size_t counter = 1;
+  while (counter > 1 || *ptr != '}') {
+    if (*ptr == '\0') {
+      *error = JSON_EFMT;
+      return NULL;
+    }
+    if (*ptr == '{') counter ++;
+    else if (*ptr == '}') counter --;
+    ptr += (*ptr == '\\') + 1;
+  }
+  size_t length = ptr - *json_string + 1;
+  char *substr = malloc(length + 1);
+  if (!substr) {
     *error = JSON_ENOMEM;
     return NULL;
   }
-  if (!memcmp(*ptr, "true", 4)) {
-    token->type = JSON_BOOLEAN;
-    token->as_boolean = 1;
-    *ptr += 4;
-  } else if (!memcmp(*ptr, "false", 5)) {
-    token->type = JSON_BOOLEAN;
-    token->as_boolean = 0;
-    *ptr += 5;
-  } else if (!memcmp(*ptr, "null", 4)) {
-    token->type = JSON_NULL;
-    *ptr += 4;
-  } else {
-    switch (**ptr) {
-      case '"': {
-        char *str = jsontok_parse_string(ptr, error);
-        if (!str) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_STRING;
-        token->as_string = str;
-        break;
-      }
-      case '{': {
-        char *str = jsontok_parse_sub_object(ptr, error);
-        if (!str) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_SUB_OBJECT;
-        token->as_string = str;
-        break;
-      }
-      case '[': {
-        char *str = jsontok_parse_sub_array(ptr, error);
-        if (!str) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_SUB_ARRAY;
-        token->as_string = str;
-        break;
-      }
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-      case '-': {
-        double *number = jsontok_parse_number(ptr, error);
-        if (!number) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_NUMBER;
-        token->as_number = *number;
-        free(number);
-        break;
-      }
-      default:
-        free(token);
-        *error = JSON_EFMT;
-        return NULL;
-    }
-  }
-  return token;
+  strncpy(substr, *json_string, length);
+  substr[length] = '\0';
+  *json_string = ptr + 1;
+  return substr;
 }
 
-static void skip_whitespace(const char **ptr) {
-  while (**ptr == '\t' || **ptr == '\r' || **ptr == '\n' || **ptr == ' ') {
-    (*ptr)++;
+static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *error) {
+  char *ptr = (char *)(*json_string + 1);
+  size_t counter = 1;
+  while (counter > 1 || *ptr != ']') {
+    if (*ptr == '\0') {
+      *error = JSON_EFMT;
+      return NULL;
+    }
+    if (*ptr == '[') counter ++;
+    else if (*ptr == ']') counter --;
+    ptr += (*ptr == '\\') + 1;
   }
+  size_t length = ptr - *json_string + 1;
+  char *substr = malloc(length + 1);
+  if (!substr) {
+    *error = JSON_EFMT;
+    return NULL;
+  }
+  strncpy(substr, *json_string, length);
+  substr[length] = '\0';
+  *json_string = ptr + 1;
+  return substr;
 }
