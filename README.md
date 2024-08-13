@@ -21,12 +21,16 @@ jsontok parses JSON one layer at a time, treating nested objects and arrays as `
 
 ## Usage
 
-Coming soon!
+You can either copy `include/jsontok.h` and `src/jsontok.c` into your program or you can clone this repo and run `make lib` to generate the static library.
+
+## Documentation
+
+Documentation coming soon! For now, take a look at `include/jsontok.h` for an overview of available functions.
 
 ## Testing
 
-The program is first tested against some minified JSON taken from [C-Simple-JSON-Parser](https://github.com/forkachild/C-Simple-JSON-Parser) primarily for benchmarking. Then, unit tests are run against every case. The code is also tested against Valgrind and/or MacOS leaks locally.
+Runs unit tests against every case and tested locally against Valgrind and/or MacOS leaks. You can run tests yourself by cloning the repo and running `make test`. You can add more tests in the `src/test.c` file.
 
 ## Benchmarks
 
-About 8.6x faster than C-Simple-JSON-Parser, more coming soon!
+Parses at about 290MB/s when parsing a 100,000 byte file. You can see benchmarks by cloning the repo and running `make benchmark`. You can add more benchmarks by adding to the `src/benchmark.c` file and adding more samples.
