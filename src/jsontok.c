@@ -1,9 +1,9 @@
 #include "jsontok.h"
 #include <stdio.h>
 
-static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
-
 static void skip_whitespace(const char **ptr);
+
+static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
 
 const char *jsontok_strerror(enum JsonError error) {
   switch (error) {
@@ -266,9 +266,10 @@ static struct JsonObject *jsontok_parse_object(const char **json_string, enum Js
   }
   head->next = NULL;
   head->value = NULL;
-  char *ptr = (char *)(*json_string + 1);
+  const char *ptr = (char *)(*json_string + 1);
   size_t count = 0;
   while (*ptr != '}') {
+    skip_whitespace(&ptr);
     if (*ptr != '"') {
       free_list_object(head);
       *error = JSON_EFMT;
@@ -280,12 +281,14 @@ static struct JsonObject *jsontok_parse_object(const char **json_string, enum Js
       *error = JSON_ENOMEM;
       return NULL;
     }
+    skip_whitespace(&ptr);
     if (*ptr != ':') {
       free(key);
       free_list_object(head);
       *error = JSON_EFMT;
       return NULL;
     }
+    skip_whitespace(&ptr);
     ptr ++;
     struct JsonToken *token = jsontok_parse_value((const char **)&ptr, error);
     if (!token) {
@@ -315,7 +318,9 @@ static struct JsonObject *jsontok_parse_object(const char **json_string, enum Js
     n->next = head;
     n->value = entry;
     head = n;
+    skip_whitespace(&ptr);
     if (*ptr == ',') ptr ++;
+    skip_whitespace(&ptr);
     count ++;
   }
   struct JsonObject *object = malloc(sizeof(struct JsonObject));
@@ -353,9 +358,10 @@ static struct JsonArray *jsontok_parse_array(const char **json_string, enum Json
   }
   head->next = NULL;
   head->value = NULL;
-  char *ptr = (char *)(json_string + 1);
+  const char *ptr = *json_string + 1;
   size_t length = 0;
   while (*ptr != ']') {
+    skip_whitespace(&ptr);
     if (*ptr == '\0') {
       free_list_array(head);
       *error = JSON_EFMT;
@@ -376,7 +382,9 @@ static struct JsonArray *jsontok_parse_array(const char **json_string, enum Json
     n->next = head;
     n->value = token;
     head = n;
+    skip_whitespace(&ptr);
     if (*ptr == ',') ptr ++;
+    skip_whitespace(&ptr);
     length ++;
   }
   struct JsonToken **elements = malloc(length * sizeof(struct JsonToken *));
@@ -417,6 +425,7 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
     *error = JSON_ENOMEM;
     return NULL;
   }
+  skip_whitespace(&json_string);
   if (!memcmp(json_string, "true", 4)) {
     token->type = JSON_BOOLEAN;
     token->as_boolean = 1;

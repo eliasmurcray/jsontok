@@ -67,24 +67,24 @@ void test_parse_valid_json() {
   assert(number_token->type == JSON_NUMBER);
   assert(number_token->as_number == 42);
 
-  /*struct JsonToken *array_token = jsontok_get(token->as_object, "array");
+  struct JsonToken *array_token = jsontok_get(token->as_object, "array");
   assert(array_token != NULL);
-  assert(array_token->type == JSON_WRAPPED_ARRAY);*/
+  assert(array_token->type == JSON_SUB_ARRAY);
 
-  /*struct JsonToken *nested_token = jsontok_get(token->as_object, "nested");
+  struct JsonToken *nested_token = jsontok_get(token->as_object, "nested");
   assert(nested_token != NULL);
-  assert(nested_token->type == JSON_WRAPPED_OBJECT);
-  struct JsonToken *unwrapped_token = jsontok_unwrap(nested_token, &error);
+  assert(nested_token->type == JSON_SUB_OBJECT);
+  struct JsonToken *unwrapped_token = jsontok_parse(nested_token->as_string, &error);
   assert(unwrapped_token != NULL);
-  assert(unwrapped_token->type == JSON_OBJECT);*/
+  assert(unwrapped_token->type == JSON_OBJECT);
 
-  /*struct JsonToken *inner_key_token = jsontok_get(unwrapped_token->as_object, "inner_key");
+  struct JsonToken *inner_key_token = jsontok_get(unwrapped_token->as_object, "inner_key");
   assert(inner_key_token != NULL);
   assert(inner_key_token->type == JSON_STRING);
-  assert(strcmp(inner_key_token->as_string, "inner_value") == 0);*/
+  assert(strcmp(inner_key_token->as_string, "inner_value") == 0);
 
   jsontok_free(token);
-  /*jsontok_free(unwrapped_token);*/
+  jsontok_free(unwrapped_token);
 }
 
 void test_parse_invalid_json() {
@@ -97,6 +97,7 @@ void test_parse_invalid_json() {
 }
 
 void test_unwrap_json_wrapped_object() {
+  
 }
 
 void test_get_nonexistent_key() {
