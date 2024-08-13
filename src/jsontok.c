@@ -39,8 +39,8 @@ void jsontok_free(struct JsonToken *token) {
       free(token->as_object);
       break;
     }
-    case JSON_WRAPPED_OBJECT:
-    case JSON_WRAPPED_ARRAY:
+    case JSON_SUB_OBJECT:
+    case JSON_SUB_ARRAY:
     case JSON_STRING:
       free(token->as_string);
       break;
@@ -130,7 +130,7 @@ static char *jsontok_parse_string(const char **json_string, enum JsonError *erro
   return substr;
 }
 
-static struct JsonToken *jsontok_parse_number_token(const char **json_string, enum JsonError *error) {
+static double *jsontok_parse_number(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   unsigned char needs_digit = **json_string == '-';
   unsigned char decimal = 1;
@@ -156,26 +156,23 @@ static struct JsonToken *jsontok_parse_number_token(const char **json_string, en
   }
   strncpy(substr, *json_string, length);
   substr[length] = '\0';
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
-    *error = JSON_ENOMEM;
+  errno = 0;
+  char *endptr = NULL;
+  double *number = malloc(sizeof(double));
+  if (!number) {
     free(substr);
     return NULL;
   }
-  errno = 0;
-  char *endptr = NULL;
-  token->type = JSON_NUMBER;
-  double value = strtod(substr, &endptr);
+  *number = strtod(substr, &endptr);
   if (errno || *endptr != '\0') {
     *error = JSON_EFMT;
+    free(number);
     free(substr);
-    free(token);
     return NULL;
   }
   free(substr);
-  token->as_number = value;
   *json_string = ptr;
-  return token;
+  return number;
 }
 
 /**
@@ -189,7 +186,7 @@ static struct JsonToken *jsontok_parse_number_token(const char **json_string, en
  * @return A char pointer to the wrapped JSON object string. On error, NULL is returned
  *         and `error` is set.
  */
-static char *jsontok_wrap_object(const char **json_string, enum JsonError *error) {
+static char *jsontok_parse_sub_object(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   size_t counter = 1;
   while (counter > 1 || *ptr != '}') {
@@ -216,7 +213,7 @@ static char *jsontok_wrap_object(const char **json_string, enum JsonError *error
 /**
  * @brief Wraps a JSON array in a string for iterative parsing.
  *
- * Both `jsontok_wrap_array` and `jsontok_wrap_object` enable iterative parsing by
+ * Both `jsontok_parse_sub_array` and `jsontok_parse_sub_object` enable iterative parsing by
  * requiring the user to unwrap subobjects and subarrays when they are needed.
  *
  * @param json_string A pointer to a char pointer to the beginning of the JSON array.
@@ -224,7 +221,7 @@ static char *jsontok_wrap_object(const char **json_string, enum JsonError *error
  * @return A char pointer to the wrapped JSON array string. On error, NULL is returned
  *         and the error parameter is set with an appropriate message.
  */
-static char *jsontok_wrap_array(const char **json_string, enum JsonError *error) {
+static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *error) {
   char *ptr = (char *)(*json_string + 1);
   size_t counter = 1;
   while (counter > 1 || *ptr != ']') {
@@ -432,11 +429,6 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
     *error = JSON_EFMT;
     return NULL;
   }
-  /* Numbers are either longs or doubles, so they have their own control path */
-  char c = *json_string;
-  if ((c < '0' && c > '9') || c == '-') {
-    return jsontok_parse_number_token(&json_string, error);
-  }
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {
     *error = JSON_ENOMEM;
@@ -451,7 +443,7 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
   } else if (!memcmp(json_string, "null", 4)) {
     token->type = JSON_NULL;
   }
-  switch (c) {
+  switch (*json_string) {
     case '"': {
       char *str = jsontok_parse_string(&json_string, error);
       if (!str) {
@@ -482,6 +474,27 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
       token->as_array = array;
       break;
     }
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+    case '-': {
+      double *number = jsontok_parse_number(&json_string, error);
+      if (!number) {
+        free(token);
+        return NULL;
+      }
+      token->type = JSON_NUMBER;
+      token->as_number = *number;
+      free(number);
+      break;
+    }
     default:
       free(token);
       *error = JSON_EFMT;
@@ -492,11 +505,6 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) 
 
 /* Similar to jsontok_parse but doesn't recursively expand objects and arrays. */
 static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *error) {
-  /* Numbers are either longs or doubles, so they have their own control path */
-  char c = **ptr;
-  if ((c >= '0' && c <= '9') || c == '-') {
-    return jsontok_parse_number_token(ptr, error);
-  }
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {
     *error = JSON_ENOMEM;
@@ -514,19 +522,58 @@ static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *e
     token->type = JSON_NULL;
     *ptr += 4;
   } else {
-    switch (c) {
-      case '"':
+    switch (**ptr) {
+      case '"': {
+        char *str = jsontok_parse_string(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
         token->type = JSON_STRING;
-        token->as_string = jsontok_parse_string(ptr, error);
+        token->as_string = str;
         break;
-      case '{':
-        token->type = JSON_WRAPPED_OBJECT;
-        token->as_string = jsontok_wrap_object(ptr, error);
+      }
+      case '{': {
+        char *str = jsontok_parse_sub_object(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_SUB_OBJECT;
+        token->as_string = str;
         break;
-      case '[':
-        token->type = JSON_WRAPPED_ARRAY;
-        token->as_string = jsontok_wrap_array(ptr, error);
+      }
+      case '[': {
+        char *str = jsontok_parse_sub_array(ptr, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_SUB_ARRAY;
+        token->as_string = str;
         break;
+      }
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+      case '-': {
+        double *number = jsontok_parse_number(ptr, error);
+        if (!number) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_NUMBER;
+        token->as_number = *number;
+        free(number); /* TODO check should we free this number*/
+        break;
+      }
       default:
         free(token);
         *error = JSON_EFMT;
@@ -534,34 +581,4 @@ static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *e
     }
   }
   return token;
-}
-
-struct JsonToken *jsontok_unwrap(struct JsonToken *token, enum JsonError *error) {
-  struct JsonToken *unwrapped_token = malloc(sizeof(struct JsonToken));
-  if (!unwrapped_token) {
-    *error = JSON_ENOMEM;
-    return NULL;
-  }
-  if (token->type == JSON_WRAPPED_OBJECT) {
-    struct JsonObject *object  = jsontok_parse_object(token->as_string, error);
-    if (!object) {
-      free(unwrapped_token);
-      return NULL;
-    }
-    unwrapped_token->type = JSON_OBJECT;
-    unwrapped_token->as_object = object;
-    return unwrapped_token;
-  }
-  if (token->type == JSON_WRAPPED_ARRAY) {
-    struct JsonArray *array = jsontok_parse_array(token->as_string, error);
-    if (!array) {
-      free(unwrapped_token);
-      return NULL;
-    }
-    unwrapped_token->type = JSON_ARRAY;
-    unwrapped_token->as_array = array;
-  }
-  free(unwrapped_token);
-  *error = JSON_ETYPE;
-  return NULL;
 }

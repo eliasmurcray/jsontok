@@ -19,8 +19,8 @@ enum JsonType {
   JSON_ARRAY,
   JSON_BOOLEAN,
   JSON_NULL,
-  JSON_WRAPPED_OBJECT,
-  JSON_WRAPPED_ARRAY,
+  JSON_SUB_OBJECT,
+  JSON_SUB_ARRAY,
 };
 
 struct JsonToken;
@@ -74,17 +74,6 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
  * @return The value associated with the key, or NULL if not found.
  */
 struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
-
-/**
- * @brief Unwraps a JSON wrapped token.
- *
- * This function unwraps a token of type JSON_WRAPPED_OBJECT or JSON_WRAPPED_ARRAY into a token
- * of type JSON_OBJECT or JSON_ARRAY if possible.
- *
- * @param token The JsonToken to unwrap.
- * @return The unwrapped JsonToken, or NULL if unwrapping is not possible.
- */
-struct JsonToken *jsontok_unwrap(struct JsonToken* token, enum JsonError *error);
 
 /**
  * @brief Looks up the error message string corresponding to the error code.
