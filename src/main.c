@@ -97,7 +97,28 @@ void test_parse_invalid_json() {
 }
 
 void test_unwrap_json_wrapped_object() {
-  
+  enum JsonError error = JSON_ENOERR;
+  const char *json_string = "{\"wrapped\":{\"key\":\"value\"}}";
+  struct JsonToken *token = jsontok_parse(json_string, &error);
+
+  assert(token != NULL);
+  assert(error == JSON_ENOERR);
+
+  struct JsonToken *wrapped_token = jsontok_get(token->as_object, "wrapped");
+  assert(wrapped_token != NULL);
+  assert(wrapped_token->type == JSON_SUB_OBJECT);
+
+  struct JsonToken *unwrapped_token = jsontok_parse(wrapped_token->as_string, &error);
+  assert(unwrapped_token != NULL);
+  assert(unwrapped_token->type == JSON_OBJECT);
+
+  struct JsonToken *value_token = jsontok_get(unwrapped_token->as_object, "key");
+  assert(value_token != NULL);
+  assert(value_token->type == JSON_STRING);
+  assert(strcmp(value_token->as_string, "value") == 0);
+
+  jsontok_free(token);
+  jsontok_free(unwrapped_token);
 }
 
 void test_get_nonexistent_key() {
