@@ -1,9 +1,34 @@
 #include "jsontok.h"
 #include <stdio.h>
 
+/**
+ * To parse an array or object in one pass, data is temporarily stored in a linked list
+ * and expanded into a malloc'd pointer once traversal is complete, avoiding realloc.
+ */
+struct Node {
+  void *value;
+  struct Node *next;
+};
+
+static void free_list_object(struct Node *n);
+
+static void free_list_array(struct Node *n);
+
 static void skip_whitespace(const char **ptr);
 
 static struct JsonToken *jsontok_parse_value(const char **json_string, enum JsonError *error);
+
+static char *jsontok_parse_string(const char **json_string, enum JsonError *error);
+
+static double *jsontok_parse_number(const char **json_string, enum JsonError *error);
+
+static struct JsonObject *jsontok_parse_object(const char **json_string, enum JsonError *error);
+
+static struct JsonArray *jsontok_parse_array(const char **json_string, enum JsonError *error);
+
+static char *jsontok_parse_sub_object(const char **json_string, enum JsonError *error);
+
+static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *error);
 
 const char *jsontok_strerror(enum JsonError error) {
   switch (error) {
@@ -73,6 +98,96 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key) {
     }
   }
   return NULL;
+}
+
+struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) {
+  if (!json_string || strlen(json_string) == 0) {
+    *error = JSON_EFMT;
+    return NULL;
+  }
+  struct JsonToken *token = malloc(sizeof(struct JsonToken));
+  if (!token) {
+    *error = JSON_ENOMEM;
+    return NULL;
+  }
+  skip_whitespace(&json_string);
+  if (!memcmp(json_string, "true", 4)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 1;
+    json_string += 4;
+  } else if (!memcmp(json_string, "false", 5)) {
+    token->type = JSON_BOOLEAN;
+    token->as_boolean = 0;
+    json_string += 5;
+  } else if (!memcmp(json_string, "null", 4)) {
+    token->type = JSON_NULL;
+    json_string += 4;
+  } else {
+    switch (*json_string) {
+      case '"': {
+        char *str = jsontok_parse_string(&json_string, error);
+        if (!str) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_STRING;
+        token->as_string = str;
+        break;
+      }
+      case '{': {
+        struct JsonObject *object = jsontok_parse_object(&json_string, error);
+        if (!object) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_OBJECT;
+        token->as_object = object;
+        break;
+      }
+      case '[': {
+        struct JsonArray *array = jsontok_parse_array(&json_string, error);
+        if (!array) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_ARRAY;
+        token->as_array = array;
+        break;
+      }
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+      case '-': {
+        double *number = jsontok_parse_number(&json_string, error);
+        if (!number) {
+          free(token);
+          return NULL;
+        }
+        token->type = JSON_NUMBER;
+        token->as_number = *number;
+        free(number);
+        break;
+      }
+      default:
+        free(token);
+        *error = JSON_EFMT;
+        return NULL;
+    }
+  }
+  skip_whitespace(&json_string);
+  if (*json_string != '\0') {
+    free(token);
+    *error = JSON_EFMT;
+    return NULL;
+  }
+  return token;
 }
 
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error) {
@@ -225,15 +340,6 @@ static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *e
   *json_string = ptr + 1;
   return substr;
 }
-
-/**
- * To fill an array or object in one pass, data is temporarily stored in a linked list
- * and expanded into a malloc'd pointer once traversal is complete, avoiding realloc.
- */
-struct Node {
-  void *value;
-  struct Node *next;
-};
 
 static void free_list_object(struct Node *n) {
   while (n) {
@@ -415,97 +521,6 @@ static struct JsonArray *jsontok_parse_array(const char **json_string, enum Json
   return array;
 }
 
-struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error) {
-  if (!json_string || strlen(json_string) == 0) {
-    *error = JSON_EFMT;
-    return NULL;
-  }
-  struct JsonToken *token = malloc(sizeof(struct JsonToken));
-  if (!token) {
-    *error = JSON_ENOMEM;
-    return NULL;
-  }
-  skip_whitespace(&json_string);
-  if (!memcmp(json_string, "true", 4)) {
-    token->type = JSON_BOOLEAN;
-    token->as_boolean = 1;
-    json_string += 4;
-  } else if (!memcmp(json_string, "false", 5)) {
-    token->type = JSON_BOOLEAN;
-    token->as_boolean = 0;
-    json_string += 5;
-  } else if (!memcmp(json_string, "null", 4)) {
-    token->type = JSON_NULL;
-    json_string += 4;
-  } else {
-    switch (*json_string) {
-      case '"': {
-        char *str = jsontok_parse_string(&json_string, error);
-        if (!str) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_STRING;
-        token->as_string = str;
-        break;
-      }
-      case '{': {
-        struct JsonObject *object = jsontok_parse_object(&json_string, error);
-        if (!object) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_OBJECT;
-        token->as_object = object;
-        break;
-      }
-      case '[': {
-        struct JsonArray *array = jsontok_parse_array(&json_string, error);
-        if (!array) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_ARRAY;
-        token->as_array = array;
-        break;
-      }
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-      case '-': {
-        double *number = jsontok_parse_number(&json_string, error);
-        if (!number) {
-          free(token);
-          return NULL;
-        }
-        token->type = JSON_NUMBER;
-        token->as_number = *number;
-        free(number);
-        break;
-      }
-      default:
-        free(token);
-        *error = JSON_EFMT;
-        return NULL;
-    }
-  }
-  skip_whitespace(&json_string);
-  if (*json_string != '\0') {
-    free(token);
-    *error = JSON_EFMT;
-    return NULL;
-  }
-  return token;
-}
-
-/* Similar to jsontok_parse but doesn't expand objects and arrays. */
 static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *error) {
   struct JsonToken *token = malloc(sizeof(struct JsonToken));
   if (!token) {

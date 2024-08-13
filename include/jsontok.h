@@ -52,19 +52,19 @@ struct JsonToken {
 };
 
 /**
+ * @brief Looks up the error message string corresponding to the error code.
+ *
+ * @param error The error enum to be looked up.
+ * @return The stringified version of the error.
+ */
+const char *jsontok_strerror(enum JsonError error);
+
+/**
  * @brief Frees a JsonToken and its children, if any.
  *
  * @param token The JsonToken to be freed.
  */
 void jsontok_free(struct JsonToken *token);
-
-/**
- * @brief Parses a JSON string and returns a JsonToken.
- *
- * @param json_string The JSON string to parse.
- * @return A pointer to a JsonToken representing the parsed JSON, or NULL if an error occurs.
- */
-struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
 
 /**
  * @brief Retrieves the value for a specified key in a JSON object.
@@ -76,11 +76,11 @@ struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
 struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
 
 /**
- * @brief Looks up the error message string corresponding to the error code.
+ * @brief Parses a JSON string and returns a JsonToken.
  *
- * @param error The error enum to be looked up.
- * @return The stringified version of the error.
+ * @param json_string The JSON string to parse.
+ * @return A pointer to a JsonToken representing the parsed JSON, or NULL if an error occurs.
  */
-const char *jsontok_strerror(enum JsonError error);
+struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
 
 #endif
