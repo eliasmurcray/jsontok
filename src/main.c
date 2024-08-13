@@ -26,8 +26,8 @@ char *read_file(const char *path) {
   return buffer;
 }
 
-void test_parse(const char *path) {
-  printf("Running %s parse test...\n", path);
+void benchmark(const char *path) {
+  printf("Running %s benchmark...\n", path);
   char *json = read_file(path);
   if (json == NULL) {
     fprintf(stderr, "Failed to get %s\n", path);
@@ -114,12 +114,12 @@ void test_get_nonexistent_key() {
 }
 
 int main() {
-  test_parse("./samples/simple.json");
-  test_parse("./samples/multidim_arr.json");
-  test_parse("./samples/random.json");
-  test_parse("./samples/rickandmorty.json");
-  test_parse("./samples/food.json");
-  test_parse("./samples/reddit.json");
+  benchmark("./samples/simple.json");
+  benchmark("./samples/multidim_arr.json");
+  benchmark("./samples/random.json");
+  benchmark("./samples/rickandmorty.json");
+  benchmark("./samples/food.json");
+  benchmark("./samples/reddit.json");
   
   printf("Running test_parse_valid_json...");
   test_parse_valid_json();

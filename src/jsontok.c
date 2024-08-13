@@ -571,7 +571,7 @@ static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *e
         }
         token->type = JSON_NUMBER;
         token->as_number = *number;
-        free(number); /* TODO check should we free this number*/
+        free(number);
         break;
       }
       default:
