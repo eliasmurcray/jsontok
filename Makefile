@@ -1,13 +1,22 @@
-TARGET = build/main
+CFLAGS = -std=c89 -Ofast -Wall -Wextra -Iinclude/
+OUT = build
 
-all: $(TARGET)
+$(OUT):
+	@mkdir -p $(OUT)
 
-$(TARGET): $(wildcard src/*.c)
-	@mkdir -p $(dir $@)
-	gcc -std=c89 -Ofast -g -Wall -Wextra -Iinclude/ -o $@ $^
+lib: $(OUT)
+	$(CC) $(CFLAGS) -c src/jsontok.c -o $(OUT)/jsontok.o
+	$(AR) rcs $(OUT)/libjsontok.a $(OUT)/jsontok.o
+
+test: $(OUT)
+	$(CC) $(CFLAGS) src/jsontok.c src/test.c -o $(OUT)/test
+	./$(OUT)/test
+
+benchmark: $(OUT)
+	$(CC) $(CFLAGS) src/jsontok.c src/benchmark.c -o $(OUT)/benchmark
+	./$(OUT)/benchmark
 
 clean:
-	rm -rf $(dir $(TARGET))
+	rm -rf $(OUT)/
 
 .PHONY: all clean
-
