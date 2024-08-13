@@ -43,7 +43,7 @@ void benchmark(const char *path) {
   long elapsed = ((end - start) * 1000000) / CLOCKS_PER_SEC;
   size_t bytes = strlen(json);
   double throughput = (double)bytes / (elapsed / 1e6) / (1024 * 1024);
-  printf("Successfully parsed %s (%zu bytes) in %ldus (%.3f MB/s)\n\n", path, strlen(json), ((end - start) * 1000000) / CLOCKS_PER_SEC, throughput);
+  printf("Successfully parsed %s (%zu bytes) in %ldus (%.3f MB/s)\n\n", path, bytes, elapsed, throughput);
 
   free(json);
   jsontok_free(token);
