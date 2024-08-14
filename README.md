@@ -25,7 +25,80 @@ You can either copy `include/jsontok.h` and `src/jsontok.c` into your program or
 
 ## Documentation
 
-Documentation coming soon! For now, take a look at `include/jsontok.h` for an overview of available functions.
+### Errors
+
+All errors are handled by a single enum type `JsonError`.
+
+Here is the definition for all errors:
+
+```c
+enum JsonError {
+  JSON_ENOERR,
+  JSON_EFMT,
+  JSON_ENOMEM,
+  JSON_ETYPE,
+};
+```
+
+There is a helper function which converts the errors to a readable string format:
+
+```c
+const char *jsontok_strerror(enum JsonError error) {
+  switch (error) {
+    case JSON_ENOERR:
+      return "No error";
+    case JSON_EFMT:
+      return "Invalid format";
+    case JSON_ETYPE:
+      return "Invalid type";
+    case JSON_ENOMEM:
+      return "Out of memory";
+    default:
+      return "Unknown error";
+  }
+}
+```
+
+### Example
+
+Here is an example following the one depicted in the design diagram:
+
+```c
+#include "jsontok.h"
+#include <stdio.h>
+
+int main () {
+  const char *json = "{\n  \"num\": 42,  \"nested\": {\n  \"str\":\"foo\"\n  }\n}";
+  enum JsonError error;
+  struct JsonToken *token = jsontok_parse(json, &error);
+  if (!token) {
+    printf("Error parsing JSON: %s\n", jsontok_strerror(error));
+    return NULL;
+  }
+
+  if (token->type == JSON_OBJECT) {
+    struct JsonToken *num = jsontok_get(token->as_object, "num");
+    if (num && num->type == JSON_NUMBER) {
+      printf("num: %f\n", num->as_number);
+    } else {
+      printf("key 'num' not found\n");
+    }
+
+    struct JsonToken *nested = jsontok_get(token->as_object, "nested");
+    if (nested && nested->type == JSON_SUB_OBJECT) {
+      struct JsonToken *nested_obj = jsontok_parse(nested->as_string, &error);
+      if (!nested_obj) {
+        printf("Error parsing 'nested' JSON: %s\n", jsontok_strerror(error));
+      } else {
+      }
+    } else {
+      printf("key 'nested' not found\n");
+    }
+  }
+
+  jsontok_free(token);
+}
+```
 
 ## Testing
 
