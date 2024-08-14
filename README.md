@@ -1,6 +1,6 @@
 # jsontok
 
-jsontok is a lightweight library for efficiently parsing JSON.
+jsontok is an incremental RFC 8259 compliant JSON parser written in ANSI C
 
 ## Features
 - ANSI C compatible
