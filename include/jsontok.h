@@ -1,6 +1,10 @@
 #ifndef JSONTOK_H
 #define JSONTOK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -82,5 +86,9 @@ struct JsonToken *jsontok_get(struct JsonObject *object, const char *key);
  * @return A pointer to a JsonToken representing the parsed JSON, or NULL if an error occurs.
  */
 struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
