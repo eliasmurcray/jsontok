@@ -77,7 +77,7 @@ enum JsonType {
 
 The tokens all have a anonymous union attached to them that allow you to get data from it.
 
-```
+```c
 // struct JsonToken *token;
 
 token->type // (enum JsonType)
