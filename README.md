@@ -75,7 +75,7 @@ enum JsonType {
 };
 ```
 
-The tokens all have a anonymous union attached to them that allow you to get data from it depending on the type.
+The tokens all have an anonymous union attached to them that allow you to get data from it depending on the type.
 
 ```c
 // struct JsonToken *token;
@@ -98,6 +98,91 @@ token->as_boolean // (unsigned char)
 token->as_string (char *)
 // JSON_SUB_ARRAY
 token->as_string (char *)
+```
+
+### Parsing
+
+You can parse a JSON string using `jsontok_parse`, which will return a pointer to a JsonToken. All tokens returned from `jsontok_parse` must be freed with `jsontok_free`. If `jsontok_parse` fails, it will return `NULL` and `error` will be set.
+
+```c
+struct JsonToken *jsontok_parse(const char *json_string, enum JsonError *error);
+```
+ 
+```c
+const char* str = "24.1";
+enum JsonError error;
+struct JsonToken *token = jsontok_parse(str, &error);
+```
+
+#### Subobjects and Subarrays
+
+When parsing an object or array, `jsontok_parse` if there is a subarray or subobject for example
+
+```json
+{
+  "nested": {
+    "key": "value",
+  },
+  "arr": [1, 2, 3]
+}
+```
+
+The nested subarray or subobject will be returned as a token with the substring of the nested data for example
+```
+nested: "{\n  \"key\": \"value\",\n}"
+arr: "[1, 2, 3]"
+```
+
+These are accessed with `token->as_string` and can be passed back into `jsontok_parse` if you wish to get their data.
+
+### Objects
+
+Objects are defined as follows:
+
+```c
+struct JsonEntry {
+  char *key;
+  struct JsonToken *value;
+};
+
+struct JsonObject {
+  size_t count;
+  struct JsonEntry **entries;
+};
+```
+
+Reading keys from objects you can use the helper function `jsontok_get`:
+
+```c
+const char *json = "{\"key\":\"value\"}";
+enum JsonError error;
+struct JsonToken *token = jsontok_parse(json, &error);
+struct JsonToken *key = jsontok_get(token->as_object, "key");
+printf("%s\n", key->as_string);
+```
+
+### Arrays
+
+Arrays are returned with two fields, `length` and `elements`, where each element is a `JsonToken`:
+
+```c
+struct JsonArray {
+  size_t length;
+  struct JsonToken **elements;
+};
+```
+
+As such you can loop over elements rather easily:
+
+```c
+const char *json = "[1, 2, 3]";
+enum JsonError error;
+struct JsonToken *tok = jsontok_parse(json, &error);
+struct JsonArray *arr = tok->as_array;
+size_t i;
+for (i = 0; i < arr->count; i++) {
+  printf("%f\n", arr->elements[i]->as_number);
+]
 ```
 
 ### Example
