@@ -137,6 +137,12 @@ int main () {
 }
 ```
 
+Output:
+```
+num: 42.000000
+nested.str: foo
+```
+
 ## Testing
 
 Runs unit tests against every case and tested locally against Valgrind and/or MacOS leaks. You can run tests yourself by cloning the repo and running `make test`. You can add more tests in the `src/test.c` file.
