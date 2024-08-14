@@ -143,6 +143,8 @@ num: 42.000000
 nested.str: foo
 ```
 
+You can run this test for yourself by cloning this repo and running `make example`.
+
 ## Testing
 
 Runs unit tests against every case and tested locally against Valgrind and/or MacOS leaks. You can run tests yourself by cloning the repo and running `make test`. You can add more tests in the `src/test.c` file.
