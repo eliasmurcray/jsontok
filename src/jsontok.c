@@ -427,8 +427,8 @@ static struct JsonObject *jsontok_parse_object(const char **json_string, enum Js
       *error = JSON_EFMT;
       return NULL;
     }
-    skip_whitespace(&ptr);
     ptr ++;
+    skip_whitespace(&ptr);
     struct JsonToken *token = jsontok_parse_value((const char **)&ptr, error);
     if (!token) {
       free(key);

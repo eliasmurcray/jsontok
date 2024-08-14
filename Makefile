@@ -16,6 +16,10 @@ benchmark: $(OUT)
 	$(CC) $(CFLAGS) src/jsontok.c src/benchmark.c -o $(OUT)/benchmark
 	./$(OUT)/benchmark
 
+example: $(OUT)
+	$(CC) $(CFLAGS) src/jsontok.c src/example.c -o $(OUT)/example
+	./$(OUT)/example
+
 clean:
 	rm -rf $(OUT)/
 
