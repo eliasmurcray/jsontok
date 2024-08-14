@@ -59,6 +59,47 @@ const char *jsontok_strerror(enum JsonError error) {
 }
 ```
 
+### Types
+
+All JSON is parsed into struct `JsonToken` and has the following types:
+```c
+enum JsonType {
+  JSON_STRING,
+  JSON_NUMBER,
+  JSON_OBJECT,
+  JSON_ARRAY,
+  JSON_BOOLEAN,
+  JSON_NULL,
+  JSON_SUB_OBJECT,
+  JSON_SUB_ARRAY,
+};
+```
+
+The tokens all have a anonymous union attached to them that allow you to get data from it.
+
+```
+// struct JsonToken *token;
+
+token->type // (enum JsonType)
+
+// JSON_STRING
+token->as_string // (char *)
+// JSON_NUMBER
+token->as_number // (double)
+// JSON_OBJECT
+token->as_object // (struct JsonObject *)
+// JSON_ARRAY
+token->as_array // (struct JsonArray *)
+// JSON_BOOLEAN
+token->as_boolean // (unsigned char)
+// JSON_NULL
+// This case should be handled yourself
+// JSON_SUB_OBJECT
+token->as_string (char *)
+// JSON_SUB_ARRAY
+token->as_string (char *)
+```
+
 ### Example
 
 Here is an example following the one depicted in the design diagram:
