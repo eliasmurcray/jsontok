@@ -143,7 +143,7 @@ num: 42.000000
 nested.str: foo
 ```
 
-You can run this test for yourself by cloning this repo and running `make example`.
+You try this out yourself by cloning this repo and running `make example`.
 
 ## Testing
 
