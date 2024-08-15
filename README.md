@@ -95,9 +95,9 @@ token->as_boolean // (unsigned char)
 // JSON_NULL
 // This case should be handled yourself
 // JSON_SUB_OBJECT
-token->as_string (char *)
+token->as_string // (char *)
 // JSON_SUB_ARRAY
-token->as_string (char *)
+token->as_string // (char *)
 ```
 
 ### Parsing
