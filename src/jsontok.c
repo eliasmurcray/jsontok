@@ -47,6 +47,7 @@ void jsontok_free(struct JsonToken *token) {
       for (i = 0; i < token->as_array->length; i++) {
         jsontok_free(token->as_array->elements[i]);
       }
+      free(token->as_array->elements);
       free(token->as_array);
       break;
     }
