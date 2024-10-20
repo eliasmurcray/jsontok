@@ -275,7 +275,8 @@ static char *jsontok_parse_string(const char **json_string, enum JsonError *erro
       if (*start == 'u') {
         start++;
         unsigned int unicode_value = 0;
-        for (int i = 0; i < 4; i++) {
+        size_t i = 0;
+        for (; i < 4; i++) {
           char hex_digit = *start++;
           unicode_value <<= 4;
           if (hex_digit >= '0' && hex_digit <= '9') {
