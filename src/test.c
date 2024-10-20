@@ -1,8 +1,9 @@
-#include "jsontok.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
+
+#include "jsontok.h"
 
 void test_parse_valid_json() {
   enum JsonError error = JSON_ENOERR;
@@ -25,11 +26,11 @@ void test_parse_valid_json() {
 
   struct JsonToken *array_token = jsontok_get(token->as_object, "array");
   assert(array_token != NULL);
-  assert(array_token->type == JSON_SUB_ARRAY);
+  assert(array_token->type == JSON_WRAPPED_ARRAY);
 
   struct JsonToken *nested_token = jsontok_get(token->as_object, "nested");
   assert(nested_token != NULL);
-  assert(nested_token->type == JSON_SUB_OBJECT);
+  assert(nested_token->type == JSON_WRAPPED_OBJECT);
   struct JsonToken *unwrapped_token = jsontok_parse(nested_token->as_string, &error);
   assert(unwrapped_token != NULL);
   assert(unwrapped_token->type == JSON_OBJECT);
@@ -62,7 +63,7 @@ void test_unwrap_json_wrapped_object() {
 
   struct JsonToken *wrapped_token = jsontok_get(token->as_object, "wrapped");
   assert(wrapped_token != NULL);
-  assert(wrapped_token->type == JSON_SUB_OBJECT);
+  assert(wrapped_token->type == JSON_WRAPPED_OBJECT);
 
   struct JsonToken *unwrapped_token = jsontok_parse(wrapped_token->as_string, &error);
   assert(unwrapped_token != NULL);

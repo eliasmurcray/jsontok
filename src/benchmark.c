@@ -1,7 +1,9 @@
-#include "jsontok.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+
+#include "jsontok.h"
 
 char *read_file(const char *path) {
   FILE *file = fopen(path, "r");
@@ -35,7 +37,7 @@ void benchmark(const char *path) {
   enum JsonError error;
   struct JsonToken *token = jsontok_parse(json, &error);
   clock_t end = clock();
-  if (token == NULL) {  
+  if (token == NULL) {
     free(json);
     fprintf(stderr, "Failed to parse JSON: %s\n", jsontok_strerror(error));
     return;
@@ -56,4 +58,5 @@ int main() {
   benchmark("./samples/rickandmorty.json");
   benchmark("./samples/food.json");
   benchmark("./samples/reddit.json");
+  benchmark("./samples/discord.json");
 }

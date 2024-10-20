@@ -1,7 +1,8 @@
-#include "jsontok.h"
 #include <stdio.h>
 
-int main () {
+#include "jsontok.h"
+
+int main() {
   const char *json = "{\n  \"num\": 42,  \"nested\": {\n  \"str\":\"foo\"\n  }\n}";
   enum JsonError error;
   struct JsonToken *token = jsontok_parse(json, &error);

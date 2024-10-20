@@ -5,9 +5,9 @@
 extern "C" {
 #endif
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 enum JsonError {
   JSON_ENOERR,
@@ -23,8 +23,8 @@ enum JsonType {
   JSON_ARRAY,
   JSON_BOOLEAN,
   JSON_NULL,
-  JSON_SUB_OBJECT,
-  JSON_SUB_ARRAY,
+  JSON_WRAPPED_OBJECT,
+  JSON_WRAPPED_ARRAY,
 };
 
 struct JsonToken;
