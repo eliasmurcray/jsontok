@@ -257,61 +257,102 @@ static struct JsonToken *jsontok_parse_value(const char **ptr, enum JsonError *e
 }
 
 static char *jsontok_parse_string(const char **json_string, enum JsonError *error) {
-  char *ptr = (char *)(*json_string + 1);
-  ptr++;
-  size_t length = 1;
-  while (*ptr != '"') {
-    if (*ptr == '\0') {
+  const char *start = *json_string;
+  char *result = NULL;
+  size_t length = 0;
+  if (*start != '"') {
+    *error = JSON_EFMT;
+    return NULL;
+  }
+  start++;
+  while (*start != '"') {
+    if (*start == '\0') {
       *error = JSON_EFMT;
       return NULL;
     }
-    ptr += (*ptr == '\\') + 1;
-    length++;
-  }
-  char *substr = malloc(length + 1);
-  if (!substr) {
-    *error = JSON_ENOMEM;
-    return NULL;
-  }
-  size_t i = 0;
-  char *nptr = (char *)(*json_string + 1);
-  for (; nptr != ptr; nptr++, i++) {
-    if (*nptr != '\\') {
-      substr[i] = *nptr;
-      continue;
+    if (*start == '\\') {
+      start++;
+      if (*start == 'u') {
+        start++;
+        unsigned int unicode_value = 0;
+        for (int i = 0; i < 4; i++) {
+          char hex_digit = *start++;
+          unicode_value <<= 4;
+          if (hex_digit >= '0' && hex_digit <= '9') {
+            unicode_value += hex_digit - '0';
+          } else if (hex_digit >= 'a' && hex_digit <= 'f') {
+            unicode_value += hex_digit - 'a' + 10;
+          } else if (hex_digit >= 'A' && hex_digit <= 'F') {
+            unicode_value += hex_digit - 'A' + 10;
+          } else {
+            *error = JSON_EFMT;
+            return NULL;
+          }
+        }
+        if (unicode_value <= 0x7F) {
+          result = realloc(result, length + 1);
+          result[length++] = (char)unicode_value;
+        } else if (unicode_value <= 0x7FF) {
+          result = realloc(result, length + 2);
+          result[length++] = 0xC0 | ((unicode_value >> 6) & 0x1F);
+          result[length++] = 0x80 | (unicode_value & 0x3F);
+        } else if (unicode_value <= 0xFFFF) {
+          result = realloc(result, length + 3);
+          result[length++] = 0xE0 | ((unicode_value >> 12) & 0x0F);
+          result[length++] = 0x80 | ((unicode_value >> 6) & 0x3F);
+          result[length++] = 0x80 | (unicode_value & 0x3F);
+        } else if (unicode_value <= 0x10FFFF) {
+          result = realloc(result, length + 4);
+          result[length++] = 0xF0 | ((unicode_value >> 18) & 0x07);
+          result[length++] = 0x80 | ((unicode_value >> 12) & 0x3F);
+          result[length++] = 0x80 | ((unicode_value >> 6) & 0x3F);
+          result[length++] = 0x80 | (unicode_value & 0x3F);
+        }
+      } else {
+        switch (*start) {
+          case 'b':
+            result = realloc(result, length + 1);
+            result[length++] = '\b';
+            break;
+          case 'f':
+            result = realloc(result, length + 1);
+            result[length++] = '\f';
+            break;
+          case 'n':
+            result = realloc(result, length + 1);
+            result[length++] = '\n';
+            break;
+          case 'r':
+            result = realloc(result, length + 1);
+            result[length++] = '\r';
+            break;
+          case 't':
+            result = realloc(result, length + 1);
+            result[length++] = '\t';
+            break;
+          case '"':
+            result = realloc(result, length + 1);
+            result[length++] = '"';
+            break;
+          case '\\':
+            result = realloc(result, length + 1);
+            result[length++] = '\\';
+            break;
+          default:
+            *error = JSON_EFMT;
+            return NULL;
+        }
+        start++;
+      }
+    } else {
+      result = realloc(result, length + 1);
+      result[length++] = *start++;
     }
-    nptr++;
-    switch (*nptr) {
-      case 'b':
-        substr[i] = '\b';
-        break;
-      case 'f':
-        substr[i] = '\f';
-        break;
-      case 'n':
-        substr[i] = '\n';
-        break;
-      case 'r':
-        substr[i] = '\r';
-        break;
-      case 't':
-        substr[i] = '\t';
-        break;
-      case '"':
-        substr[i] = '"';
-        break;
-      case '\\':
-        substr[i] = '\\';
-        break;
-      default:
-        free(substr);
-        *error = JSON_EFMT;
-        return NULL;
-    }
   }
-  substr[length] = '\0';
-  *json_string = ptr + 1;
-  return substr;
+  result = realloc(result, length + 1);
+  result[length] = '\0';
+  *json_string = start + 1;
+  return result;
 }
 
 static double *jsontok_parse_number(const char **json_string, enum JsonError *error) {
