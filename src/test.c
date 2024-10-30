@@ -92,6 +92,26 @@ void test_get_nonexistent_key() {
   jsontok_free(token);
 }
 
+void test_empty_nested_tokens() {
+  enum JsonError error = JSON_ENOERR;
+  const char *json_string = "{\"arr\":[]}";
+  struct JsonToken *token = jsontok_parse(json_string, &error);
+
+  assert(token != NULL);
+  assert(token->type == JSON_OBJECT);
+  assert(error == JSON_ENOERR);
+
+  struct JsonToken *arr = jsontok_get(token->as_object, "arr");
+  assert(arr != NULL);
+  assert(arr->type == JSON_WRAPPED_ARRAY);
+
+  struct JsonToken *array = jsontok_parse(arr->as_string, &error);
+  assert(array != NULL);
+  assert(array->type == JSON_ARRAY);
+  assert(array->as_array->length == 0);
+  assert(error == JSON_ENOERR);
+}
+
 int main() {
   printf("Running test_parse_valid_json...");
   test_parse_valid_json();
@@ -104,6 +124,9 @@ int main() {
   printf(" PASSED\n");
   printf("Running test_get_nonexistent_key...");
   test_get_nonexistent_key();
+  printf(" PASSED\n");
+  printf("Running test_empty_nested_tokens...");
+  test_empty_nested_tokens();
   printf(" PASSED\n");
 
   return 0;
