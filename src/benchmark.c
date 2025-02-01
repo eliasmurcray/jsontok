@@ -59,5 +59,4 @@ int main() {
   benchmark("./samples/food.json");
   benchmark("./samples/reddit.json");
   benchmark("./samples/discord.json");
-  benchmark("./samples/discord_response.json");
 }
