@@ -549,54 +549,60 @@ static struct JsonArray *jsontok_parse_array(const char **json_string, enum Json
   return array;
 }
 
-static char *jsontok_parse_sub_object(const char **json_string, enum JsonError *error) {
-  char *ptr = (char *)(*json_string + 1);
+static char* jsontok_parse_sub_object(const char** json_string, enum JsonError* error) {
+  char* ptr = (char*)(*json_string + 1);
   size_t counter = 1;
-  while (counter > 1 || *ptr != '}') {
+  int in_string = 0;
+  while (counter > 0) {
     if (*ptr == '\0') {
       *error = JSON_EFMT;
       return NULL;
     }
-    if (*ptr == '{')
-      counter++;
-    else if (*ptr == '}')
-      counter--;
-    ptr += (*ptr == '\\') + 1;
+    if (*ptr == '\"') in_string = !in_string;
+    else if (!in_string) {
+      if (*ptr == '{') counter++;
+      else if (*ptr == '}') counter--;
+    }
+    if (*ptr == '\\') ptr++;
+    ptr++;
   }
-  size_t length = ptr - *json_string + 1;
-  char *substr = malloc(length + 1);
+  size_t length = ptr - *json_string;
+  char* substr = malloc(length + 1);
   if (!substr) {
     *error = JSON_ENOMEM;
     return NULL;
   }
   strncpy(substr, *json_string, length);
   substr[length] = '\0';
-  *json_string = ptr + 1;
+  *json_string = ptr;
   return substr;
 }
 
-static char *jsontok_parse_sub_array(const char **json_string, enum JsonError *error) {
-  char *ptr = (char *)(*json_string + 1);
+static char* jsontok_parse_sub_array(const char** json_string, enum JsonError* error) {
+  char* ptr = (char*)(*json_string + 1);
   size_t counter = 1;
-  while (counter > 1 || *ptr != ']') {
+  int in_string = 0;
+  while (counter > 0) {
     if (*ptr == '\0') {
       *error = JSON_EFMT;
       return NULL;
     }
-    if (*ptr == '[')
-      counter++;
-    else if (*ptr == ']')
-      counter--;
-    ptr += (*ptr == '\\') + 1;
+    if (*ptr == '\"') in_string = !in_string;
+    else if (!in_string) {
+      if (*ptr == '[') counter++;
+      else if (*ptr == ']') counter--;
+    }
+    if (*ptr == '\\') ptr++;
+    ptr++;
   }
-  size_t length = ptr - *json_string + 1;
-  char *substr = malloc(length + 1);
+  size_t length = ptr - *json_string;
+  char* substr = malloc(length + 1);
   if (!substr) {
-    *error = JSON_EFMT;
+    *error = JSON_ENOMEM;
     return NULL;
   }
   strncpy(substr, *json_string, length);
   substr[length] = '\0';
-  *json_string = ptr + 1;
+  *json_string = ptr;
   return substr;
 }
